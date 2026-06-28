@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, tableToPDF, downloadFile } from '../utils/export';
 import { importFromFile } from '../utils/import';
+import { PDFSettingsDialog, type PDFExportSettings } from './PDFSettingsDialog';
 import type { TableData } from '../types';
 
 function ToolbarButton({ icon: Icon, label, active, disabled, onClick, className = '' }: {
@@ -41,6 +42,7 @@ export function Toolbar() {
   const [showImport, setShowImport] = useState(false);
   const [showRowMenu, setShowRowMenu] = useState(false);
   const [showColMenu, setShowColMenu] = useState(false);
+  const [showPDFSettings, setShowPDFSettings] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const importRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +50,11 @@ export function Toolbar() {
 
   const handleExport = async (format: string) => {
     if (!table) return;
+    if (format === 'pdf') {
+      setShowPDFSettings(true);
+      setShowExport(false);
+      return;
+    }
     switch (format) {
       case 'html':
         downloadFile(tableToHTML(table), `${table.name}.html`, 'text/html');
@@ -60,9 +67,6 @@ export function Toolbar() {
         break;
       case 'json':
         downloadFile(tableToJSON(table), `${table.name}.json`, 'application/json');
-        break;
-      case 'pdf':
-        await tableToPDF(table);
         break;
       case 'png':
         await tableToImage(table, 'png');
