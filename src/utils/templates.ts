@@ -37,7 +37,7 @@ function buildTemplate(
   data.forEach((rowData, ri) => {
     const row: RowDef = {
       id: nanoid(10),
-      height: ri === 0 ? 44 : 40,
+      height: 40,
       minHeight: 24,
       hidden: false,
       frozen: false,

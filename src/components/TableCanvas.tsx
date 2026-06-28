@@ -293,7 +293,7 @@ export function TableCanvas() {
         {/* ══ CORNER CELL + COLUMN HEADERS (OUTSIDE rounded container) ══ */}
         <div className="flex">
           {/* Corner cell (select all) */}
-          <div className="bg-[var(--surface-2)] border-b border-r border-[var(--border)]" style={{ width: 32, minWidth: 32, height: 28 }}
+          <div className="bg-[var(--surface-2)]" style={{ width: 32, minWidth: 32, height: 28, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}`, borderRight: '1px solid var(--border)' }}
             onClick={(e) => { e.stopPropagation(); store.selectAll(); }}>
             <div className="w-full h-full flex items-center justify-center cursor-pointer hover:bg-[var(--surface-3)]">
               <div className="w-2 h-2 rounded-sm bg-[var(--text-tertiary)]" />
@@ -321,7 +321,7 @@ export function TableCanvas() {
             );
           })}
           {/* Add column button */}
-          <div className="bg-[var(--surface-2)] border-b border-[var(--border)]" style={{ width: 32, minWidth: 32, height: 28 }}>
+          <div className="bg-[var(--surface-2)]" style={{ width: 32, minWidth: 32, height: 28, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}` }}>
             <button className="toolbar-btn !w-6 !h-6 mx-auto flex items-center justify-center" onClick={() => store.addColumn()} title="Add column">
               <Plus className="w-3 h-3" />
             </button>
@@ -335,7 +335,7 @@ export function TableCanvas() {
             {table.rows.map((row, ri) => (
               <div key={row.id}
                 className={`text-xs text-center cursor-grab select-none active:cursor-grabbing relative ${row.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-[var(--surface-2)]'} ${row.hidden ? 'hidden' : ''} ${dragOver === ri && dragType === 'row' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
-                style={{ width: 32, minWidth: 32, height: row.height, borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}
+                style={{ width: 32, minWidth: 32, height: row.height, borderBottom: `${theme.borderWidth}px solid ${theme.borderColor}`, borderRight: '1px solid var(--border)' }}
                 draggable onDragStart={(e) => handleDragStart(e, 'row', ri)} onDragOver={(e) => handleDragOver(e, 'row', ri)} onDrop={(e) => handleDrop(e, 'row', ri)} onDragEnd={handleDragEnd} onClick={() => store.selectRow(ri)}>
                 <span className="text-[var(--text-tertiary)]">{ri + 1}</span>
                 {row.frozen && <SnowflakeIcon />}
@@ -352,8 +352,8 @@ export function TableCanvas() {
           </div>
 
           {/* ══ THE ROUNDED DATA TABLE (ONLY data cells) ══ */}
-          <div style={{ borderRadius: theme.borderRadius, overflow: 'hidden', border: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}`, flex: 1 }}>
-            <table className="border-collapse w-full" style={{ fontFamily: theme.fontFamily, fontSize: theme.fontSize }}>
+          <div style={{ borderRadius: theme.borderRadius, overflow: 'hidden', flex: 1 }}>
+            <table className="border-collapse w-full" style={{ fontFamily: theme.fontFamily, fontSize: theme.fontSize, border: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}` }}>
               <tbody>
                 {table.rows.map((row, ri) => (
                   <tr key={row.id} className={row.hidden ? 'hidden' : ''}>
