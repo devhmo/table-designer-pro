@@ -782,6 +782,14 @@ export const useTableStore = create<TableStore>()(
     }),
     {
       name: 'table-designer-storage',
+      version: 2, // Bump this to clear old data on update
+      migrate: (persistedState: any, version: number) => {
+        // If coming from version 0 or 1, clear all tables (they have old template data)
+        if (version < 2) {
+          return { ...(persistedState as any), tables: [], activeTableId: null };
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         tables: state.tables,
         isDarkMode: state.isDarkMode,
