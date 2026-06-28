@@ -11,7 +11,7 @@ import {
   Palette, Columns, Rows, ArrowUpDown, ArrowLeftRight,
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
-import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, downloadFile } from '../utils/export';
+import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, downloadFile } from '../utils/export';
 import type { TableData } from '../types';
 
 function ToolbarButton({ icon: Icon, label, active, disabled, onClick, className = '' }: {
@@ -70,11 +70,16 @@ export function Toolbar() {
         }
         break;
       case 'png':
+        await tableToImage(table, 'png');
+        break;
       case 'jpeg':
-        alert('Image export requires html2canvas. Use HTML export and screenshot instead.');
+        await tableToImage(table, 'jpeg');
+        break;
+      case 'svg':
+        await tableToSVG(table);
         break;
       case 'excel':
-        downloadFile(tableToCSV(table), `${table.name}.csv`, 'text/csv');
+        await tableToExcel(table);
         break;
     }
     setShowExport(false);
@@ -413,6 +418,7 @@ export function Toolbar() {
                   { format: 'pdf', label: 'PDF Document' },
                   { format: 'png', label: 'PNG Image' },
                   { format: 'jpeg', label: 'JPEG Image' },
+                  { format: 'svg', label: 'SVG Vector' },
                   { format: 'excel', label: 'Excel (.xlsx)' },
                   { format: 'csv', label: 'CSV' },
                   { format: 'html', label: 'HTML' },

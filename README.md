@@ -19,6 +19,8 @@ A modern, professional table design application for creating beautiful, fully cu
 ### 📝 Cell Editing
 - **Rich text** — bold, italic, underline, strikethrough
 - **11 content types** — text, number, link, badge, tag, checkbox, progress bar, rating, image
+- **Image upload** — drag-drop or file picker, stored as base64
+- **Cell merge & split** — proper visual rendering with colSpan/rowSpan
 - **Font control** — family, size, weight, line height, letter spacing, text transform
 - **Colors** — text color, background color, opacity
 - **Alignment** — horizontal (left/center/right/justify) & vertical (top/middle/bottom)
@@ -35,6 +37,8 @@ A modern, professional table design application for creating beautiful, fully cu
 
 ### ⚡ Productivity
 - **Undo / Redo** — full history with 100-step buffer (Ctrl+Z / Ctrl+Y)
+- **Drag & drop reorder** — drag row/column headers to reorder
+- **Column rename** — double-click any column header
 - **Multi-cell selection** — click + shift-click, or drag to select ranges
 - **Copy / Paste style** — Ctrl+C / Ctrl+V for cell styles
 - **Keyboard navigation** — arrow keys, Tab, Enter to edit, Escape to cancel
@@ -45,10 +49,14 @@ A modern, professional table design application for creating beautiful, fully cu
 | Format | Import | Export |
 |--------|--------|--------|
 | CSV | ✅ | ✅ |
+| Excel (.xlsx) | ✅ | ✅ |
 | JSON | ✅ | ✅ |
 | Markdown | ✅ | ✅ |
 | HTML | — | ✅ |
 | PDF | — | ✅ (via print) |
+| PNG | — | ✅ |
+| JPEG | — | ✅ |
+| SVG | — | ✅ |
 
 ### 📱 Responsive Design
 - Fully responsive across desktop, tablet, and mobile

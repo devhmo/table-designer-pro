@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { produce } from 'immer';
-import type { TableData, Cell, ColumnDef, RowDef, Selection, HistoryEntry, TableTheme, CellStyle, CellContent, DEFAULT_THEME } from '../types';
+import type { TableData, Cell, ColumnDef, RowDef, Selection, HistoryEntry, TableTheme, CellStyle, CellContent } from '../types';
 
 const DEFAULT_THEME_OBJ: TableTheme = {
   id: 'default',
@@ -76,12 +76,37 @@ export function createTable(name: string, numCols = 5, numRows = 5): TableData {
   };
 }
 
+/** Build a set of keys that are "covered" by merged cells (should not render) */
+export function getCoveredCellKeys(table: TableData): Set<string> {
+  const covered = new Set<string>();
+  for (let ri = 0; ri < table.rows.length; ri++) {
+    for (let ci = 0; ci < table.columns.length; ci++) {
+      const cell = table.cells[`${table.rows[ri].id}:${table.columns[ci].id}`];
+      if (!cell) continue;
+      if (cell.colspan > 1 || cell.rowspan > 1) {
+        for (let dr = 0; dr < cell.rowspan; dr++) {
+          for (let dc = 0; dc < cell.colspan; dc++) {
+            if (dr === 0 && dc === 0) continue; // skip the anchor cell
+            const r = ri + dr;
+            const c = ci + dc;
+            if (r < table.rows.length && c < table.columns.length) {
+              covered.add(`${table.rows[r].id}:${table.columns[c].id}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  return covered;
+}
+
 interface TableStore {
   tables: TableData[];
   activeTableId: string | null;
   selection: Selection | null;
   activeCell: { row: number; col: number } | null;
   editingCell: { row: number; col: number } | null;
+  editingColumnHeader: number | null;
   history: HistoryEntry[];
   historyIndex: number;
   clipboard: CellStyle | null;
@@ -107,6 +132,7 @@ interface TableStore {
   duplicateColumn: (index: number) => void;
   moveRow: (from: number, to: number) => void;
   moveColumn: (from: number, to: number) => void;
+  renameColumn: (index: number, name: string) => void;
   resizeColumn: (index: number, width: number) => void;
   resizeRow: (index: number, height: number) => void;
   toggleRowHidden: (index: number) => void;
@@ -126,6 +152,7 @@ interface TableStore {
   setSelection: (selection: Selection | null) => void;
   setActiveCell: (cell: { row: number; col: number } | null) => void;
   setEditingCell: (cell: { row: number; col: number } | null) => void;
+  setEditingColumnHeader: (index: number | null) => void;
   selectAll: () => void;
   selectRow: (index: number) => void;
   selectColumn: (index: number) => void;
@@ -156,6 +183,7 @@ export const useTableStore = create<TableStore>((set, get) => ({
   selection: null,
   activeCell: null,
   editingCell: null,
+  editingColumnHeader: null,
   history: [],
   historyIndex: -1,
   clipboard: null,
@@ -204,7 +232,7 @@ export const useTableStore = create<TableStore>((set, get) => ({
   },
 
   setActiveTable: (id: string) => {
-    set({ activeTableId: id, selection: null, activeCell: null, editingCell: null });
+    set({ activeTableId: id, selection: null, activeCell: null, editingCell: null, editingColumnHeader: null });
   },
 
   getActiveTable: () => {
@@ -313,6 +341,7 @@ export const useTableStore = create<TableStore>((set, get) => ({
   },
 
   moveRow: (from: number, to: number) => {
+    if (from === to) return;
     set(produce((s: TableStore) => {
       const table = s.tables.find(t => t.id === s.activeTableId);
       if (!table) return;
@@ -324,6 +353,7 @@ export const useTableStore = create<TableStore>((set, get) => ({
   },
 
   moveColumn: (from: number, to: number) => {
+    if (from === to) return;
     set(produce((s: TableStore) => {
       const table = s.tables.find(t => t.id === s.activeTableId);
       if (!table) return;
@@ -332,6 +362,15 @@ export const useTableStore = create<TableStore>((set, get) => ({
       table.updatedAt = Date.now();
     }));
     get().pushHistory('Move column');
+  },
+
+  renameColumn: (index: number, name: string) => {
+    set(produce((s: TableStore) => {
+      const table = s.tables.find(t => t.id === s.activeTableId);
+      if (!table) return;
+      table.columns[index].name = name;
+      table.updatedAt = Date.now();
+    }));
   },
 
   resizeColumn: (index: number, width: number) => {
@@ -451,6 +490,17 @@ export const useTableStore = create<TableStore>((set, get) => ({
       if (!table.cells[mainKey]) table.cells[mainKey] = createDefaultCell();
       table.cells[mainKey].colspan = (c2 - c1) + 1;
       table.cells[mainKey].rowspan = (r2 - r1) + 1;
+      // Mark covered cells with colspan=0, rowspan=0 so they won't render
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          if (r === r1 && c === c1) continue;
+          const key = `${table.rows[r].id}:${table.columns[c].id}`;
+          if (table.cells[key]) {
+            table.cells[key].colspan = 0;
+            table.cells[key].rowspan = 0;
+          }
+        }
+      }
       table.updatedAt = Date.now();
     }));
     get().pushHistory('Merge cells');
@@ -464,9 +514,28 @@ export const useTableStore = create<TableStore>((set, get) => ({
       const col = table.columns[colIndex];
       const key = `${row.id}:${col.id}`;
       const cell = table.cells[key];
-      if (cell) {
-        cell.colspan = 1;
-        cell.rowspan = 1;
+      if (!cell) return;
+      const cs = cell.colspan;
+      const rs = cell.rowspan;
+      // Restore the anchor cell
+      cell.colspan = 1;
+      cell.rowspan = 1;
+      // Restore all previously covered cells
+      for (let dr = 0; dr < rs; dr++) {
+        for (let dc = 0; dc < cs; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const r = rowIndex + dr;
+          const c = colIndex + dc;
+          if (r < table.rows.length && c < table.columns.length) {
+            const coveredKey = `${table.rows[r].id}:${table.columns[c].id}`;
+            if (table.cells[coveredKey]) {
+              table.cells[coveredKey].colspan = 1;
+              table.cells[coveredKey].rowspan = 1;
+              table.cells[coveredKey].content = { type: 'text', text: '' };
+              table.cells[coveredKey].style = {};
+            }
+          }
+        }
       }
       table.updatedAt = Date.now();
     }));
@@ -489,6 +558,7 @@ export const useTableStore = create<TableStore>((set, get) => ({
   setSelection: (selection) => set({ selection }),
   setActiveCell: (cell) => set({ activeCell: cell }),
   setEditingCell: (cell) => set({ editingCell: cell }),
+  setEditingColumnHeader: (index) => set({ editingColumnHeader: index }),
 
   selectAll: () => {
     const table = get().getActiveTable();

@@ -28,8 +28,8 @@ export function WelcomeScreen() {
           const { importCSV } = await import('../utils/import');
           table = await importCSV(file);
         } else if (file.name.match(/\.xlsx?$/)) {
-          alert('Excel import requires xlsx library. Please use CSV format.');
-          return;
+          const { importExcel } = await import('../utils/import');
+          table = await importExcel(file);
         } else if (file.name.endsWith('.json')) {
           const { importJSON } = await import('../utils/import');
           table = await importJSON(file);

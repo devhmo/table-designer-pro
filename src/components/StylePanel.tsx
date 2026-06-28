@@ -226,15 +226,38 @@ export function StylePanel() {
               )}
 
               {cellContent?.type === 'image' && (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">URL</label>
-                  <input
-                    className="input-field !py-1 text-xs flex-1"
-                    value={cellContent.src || ''}
-                    onChange={(e) => updateContent({ src: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
+                <>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">URL</label>
+                    <input
+                      className="input-field !py-1 text-xs flex-1"
+                      value={cellContent.src || ''}
+                      onChange={(e) => updateContent({ src: e.target.value })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">Upload</label>
+                    <button
+                      className="toolbar-btn !w-auto !px-2 text-xs"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => updateContent({ src: reader.result as string });
+                          reader.readAsDataURL(file);
+                        };
+                        input.click();
+                      }}
+                    >
+                      📁 Choose Image
+                    </button>
+                  </div>
+                </>
               )}
 
               {cellContent?.type === 'progress' && (

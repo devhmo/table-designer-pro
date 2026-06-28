@@ -64,56 +64,58 @@ function parseCSVText(text: string): string[][] {
   return rows;
 }
 
-export async function importCSV(file: File): Promise<TableData> {
-  const text = await file.text();
-  const data = parseCSVText(text);
-  if (data.length === 0) throw new Error('Empty file');
-  const headers = data[0];
+function buildTable(headers: string[], dataRows: string[][], name: string): TableData {
   const columns: ColumnDef[] = headers.map((h, i) => ({
     id: nanoid(10), width: 150, minWidth: 40, hidden: false, frozen: false,
     name: h || `Col ${i + 1}`,
   }));
   const rows: RowDef[] = [];
   const cells: Record<string, Cell> = {};
-  for (let r = 1; r < data.length; r++) {
+  for (const rowData of dataRows) {
     const row: RowDef = { id: nanoid(10), height: 40, minHeight: 24, hidden: false, frozen: false };
     rows.push(row);
     columns.forEach((col, ci) => {
-      cells[`${row.id}:${col.id}`] = makeCell(data[r][ci] || '');
+      cells[`${row.id}:${col.id}`] = makeCell(rowData[ci] || '');
     });
   }
   return {
-    id: nanoid(10), name: file.name.replace(/\.[^.]+$/, ''),
+    id: nanoid(10), name,
     columns, rows, cells, theme: { ...DEFAULT_THEME },
     createdAt: Date.now(), updatedAt: Date.now(),
   };
 }
 
+export async function importCSV(file: File): Promise<TableData> {
+  const text = await file.text();
+  const data = parseCSVText(text);
+  if (data.length === 0) throw new Error('Empty file');
+  return buildTable(data[0], data.slice(1), file.name.replace(/\.[^.]+$/, ''));
+}
+
+export async function importExcel(file: File): Promise<TableData> {
+  const XLSX = await import('xlsx');
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const json = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
+  if (json.length === 0) throw new Error('Empty sheet');
+  const headers = json[0].map(h => String(h || ''));
+  const dataRows = json.slice(1).map(row => row.map(cell => String(cell)));
+  return buildTable(headers, dataRows, file.name.replace(/\.[^.]+$/, ''));
+}
+
 export async function importJSON(file: File): Promise<TableData> {
   const text = await file.text();
   const parsed = JSON.parse(text);
+  // If it's already a full TableData object
   if (parsed.columns && parsed.rows && parsed.cells) {
     return { ...parsed, id: nanoid(10), createdAt: Date.now(), updatedAt: Date.now() };
   }
+  // If it's an array of objects
   if (Array.isArray(parsed) && parsed.length > 0) {
     const keys = Object.keys(parsed[0]);
-    const columns: ColumnDef[] = keys.map(k => ({
-      id: nanoid(10), width: 150, minWidth: 40, hidden: false, frozen: false, name: k,
-    }));
-    const rows: RowDef[] = [];
-    const cells: Record<string, Cell> = {};
-    for (const item of parsed) {
-      const row: RowDef = { id: nanoid(10), height: 40, minHeight: 24, hidden: false, frozen: false };
-      rows.push(row);
-      columns.forEach(col => {
-        cells[`${row.id}:${col.id}`] = makeCell(String(item[col.name] || ''));
-      });
-    }
-    return {
-      id: nanoid(10), name: file.name.replace(/\.[^.]+$/, ''),
-      columns, rows, cells, theme: { ...DEFAULT_THEME },
-      createdAt: Date.now(), updatedAt: Date.now(),
-    };
+    const dataRows = parsed.map(item => keys.map(k => String(item[k] || '')));
+    return buildTable(keys, dataRows, file.name.replace(/\.[^.]+$/, ''));
   }
   throw new Error('Unsupported JSON format');
 }
@@ -124,22 +126,10 @@ export function importMarkdown(text: string, name: string): TableData {
   const parseRow = (line: string) =>
     line.split('|').map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1 || (i === 0 && c) || (i === arr.length - 1 && c));
   const headers = parseRow(lines[0]);
-  const columns: ColumnDef[] = headers.map(h => ({
-    id: nanoid(10), width: 150, minWidth: 40, hidden: false, frozen: false, name: h,
-  }));
-  const rows: RowDef[] = [];
-  const cells: Record<string, Cell> = {};
+  const dataRows: string[][] = [];
   for (let i = 2; i < lines.length; i++) {
     if (lines[i].match(/^\|[\s-:|]+\|$/)) continue;
-    const vals = parseRow(lines[i]);
-    const row: RowDef = { id: nanoid(10), height: 40, minHeight: 24, hidden: false, frozen: false };
-    rows.push(row);
-    columns.forEach((col, ci) => {
-      cells[`${row.id}:${col.id}`] = makeCell(vals[ci] || '');
-    });
+    dataRows.push(parseRow(lines[i]));
   }
-  return {
-    id: nanoid(10), name, columns, rows, cells, theme: { ...DEFAULT_THEME },
-    createdAt: Date.now(), updatedAt: Date.now(),
-  };
+  return buildTable(headers, dataRows, name);
 }
