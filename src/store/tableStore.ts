@@ -782,13 +782,37 @@ export const useTableStore = create<TableStore>()(
     }),
     {
       name: 'table-designer-storage',
-      version: 2, // Bump this to clear old data on update
+      version: 2,
       migrate: (persistedState: any, version: number) => {
-        // If coming from version 0 or 1, clear all tables (they have old template data)
         if (version < 2) {
+          // Clear ALL old tables - they have corrupted template data
           return { ...(persistedState as any), tables: [], activeTableId: null };
         }
-        return persistedState;
+        // Also check if any table has a first data row that matches its column headers
+        const state = persistedState as any;
+        if (state.tables) {
+          state.tables = state.tables.map((table: any) => {
+            if (table.rows && table.rows.length > 0 && table.columns && table.columns.length > 0) {
+              const firstRow = table.rows[0];
+              const headerNames = table.columns.map((c: any) => c.name);
+              // Check if first data row contains header names
+              const firstRowCells = table.columns.map((col: any) => {
+                const cell = table.cells[`${firstRow.id}:${col.id}`];
+                return cell?.content?.text || '';
+              });
+              const isDuplicate = headerNames.every((name: string, i: number) => name === firstRowCells[i]);
+              if (isDuplicate) {
+                // Remove the first row
+                table.rows = table.rows.slice(1);
+                for (const col of table.columns) {
+                  delete table.cells[`${firstRow.id}:${col.id}`];
+                }
+              }
+            }
+            return table;
+          });
+        }
+        return state;
       },
       partialize: (state) => ({
         tables: state.tables,
