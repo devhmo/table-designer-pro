@@ -129,6 +129,7 @@ interface TableStore {
   clipboard: CellStyle | null;
   isDarkMode: boolean;
   sidebarOpen: boolean;
+  stylePanelOpen: boolean;
   showGrid: boolean;
   zoom: number;
 
@@ -186,6 +187,7 @@ interface TableStore {
   setShowGrid: (on: boolean) => void;
   setZoom: (z: number) => void;
   setSidebarOpen: (on: boolean) => void;
+  setStylePanelOpen: (on: boolean) => void;
 
   // Clipboard
   copyStyle: () => void;
@@ -209,6 +211,7 @@ export const useTableStore = create<TableStore>()(
       clipboard: null,
       isDarkMode: false,
       sidebarOpen: true,
+      stylePanelOpen: true,
       showGrid: true,
       zoom: 100,
 
@@ -714,6 +717,7 @@ export const useTableStore = create<TableStore>()(
       setShowGrid: (on: boolean) => set({ showGrid: on }),
       setZoom: (z: number) => set({ zoom: Math.max(50, Math.min(200, z)) }),
       setSidebarOpen: (on: boolean) => set({ sidebarOpen: on }),
+      setStylePanelOpen: (on: boolean) => set({ stylePanelOpen: on }),
 
       copyStyle: () => {
         const { activeCell, activeTableId, tables } = get();
@@ -782,6 +786,7 @@ export const useTableStore = create<TableStore>()(
         tables: state.tables,
         isDarkMode: state.isDarkMode,
         sidebarOpen: state.sidebarOpen,
+        stylePanelOpen: state.stylePanelOpen,
         showGrid: state.showGrid,
         zoom: state.zoom,
       }),

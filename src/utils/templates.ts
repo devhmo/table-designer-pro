@@ -93,7 +93,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Project Tracker', 'ocean',
       ['#', 'Task', 'Assignee', 'Status', 'Priority', 'Due Date'],
       [
-        ['#', 'Task', 'Assignee', 'Status', 'Priority', 'Due Date'],
         ['1', 'Design landing page', 'Sarah', { text: '✅ Done', style: green }, { text: '🔴 High', style: red }, '2026-07-01'],
         ['2', 'Setup CI/CD pipeline', 'Ahmed', { text: '🔄 In Progress', style: blue }, { text: '🟡 Medium', style: {} }, '2026-07-05'],
         ['3', 'Write API docs', 'Omar', { text: '⏳ Pending', style: {} }, { text: '🟢 Low', style: green }, '2026-07-10'],
@@ -113,7 +112,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Budget Planner', 'forest',
       ['Category', 'Budget', 'Actual', 'Difference', 'Status'],
       [
-        ['Category', 'Budget', 'Actual', 'Difference', 'Status'],
         [{ text: '💵 Income', style: bold }, '', '', '', ''],
         ['Salary', '$5,000', '$5,000', '$0', { text: '✅ On Track', style: green }],
         ['Freelance', '$1,000', '$1,200', '+$200', { text: '📈 Over', style: green }],
@@ -137,7 +135,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Team Directory', 'royal',
       ['Name', 'Role', 'Email', 'Phone', 'Department', 'Location'],
       [
-        ['Name', 'Role', 'Email', 'Phone', 'Department', 'Location'],
         ['Sarah Al-Rashid', 'UI/UX Designer', 'sarah@team.com', '+966 50 123 4567', 'Design', 'Riyadh'],
         ['Ahmed Hassan', 'Full Stack Dev', 'ahmed@team.com', '+966 55 234 5678', 'Engineering', 'Jeddah'],
         ['Omar Khalil', 'Backend Dev', 'omar@team.com', '+966 54 345 6789', 'Engineering', 'Riyadh'],
@@ -157,7 +154,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Inventory List', 'sunset',
       ['SKU', 'Product', 'Category', 'Qty', 'Price', 'Total', 'Status'],
       [
-        ['SKU', 'Product', 'Category', 'Qty', 'Price', 'Total', 'Status'],
         ['SKU-001', 'Wireless Mouse', 'Electronics', '150', '$25.00', '$3,750', { text: '✅ In Stock', style: green }],
         ['SKU-002', 'USB-C Hub', 'Electronics', '75', '$45.00', '$3,375', { text: '✅ In Stock', style: green }],
         ['SKU-003', 'Mechanical Keyboard', 'Electronics', '30', '$89.00', '$2,670', { text: '⚠️ Low Stock', style: { textColor: '#d97706' } }],
@@ -178,7 +174,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Grade Book', 'elegant',
       ['Student', 'HW 1', 'HW 2', 'Midterm', 'Project', 'Final', 'Total', 'Grade'],
       [
-        ['Student', 'HW 1', 'HW 2', 'Midterm', 'Project', 'Final', 'Total', 'Grade'],
         ['Ali Mohammed', '92', '88', '85', '95', '90', '90', { text: 'A', style: { ...bold, ...green, ...center } }],
         ['Fatima Hassan', '95', '91', '90', '88', '93', '91', { text: 'A', style: { ...bold, ...green, ...center } }],
         ['Khalid Omar', '78', '82', '75', '80', '70', '77', { text: 'C+', style: { ...bold, textColor: '#d97706', ...center } }],
@@ -198,7 +193,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Feature Comparison', 'midnight',
       ['Feature', 'Our Product', 'Competitor A', 'Competitor B'],
       [
-        ['Feature', 'Our Product', 'Competitor A', 'Competitor B'],
         ['Price', { text: '$29/mo', style: green }, '$49/mo', '$39/mo'],
         ['Users', { text: 'Unlimited', style: green }, '10 users', '50 users'],
         ['Storage', { text: '100GB', style: green }, '50GB', '25GB'],
@@ -220,7 +214,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Weekly Meeting Schedule', 'ocean',
       ['Time', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       [
-        ['Time', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
         ['9:00 AM', { text: 'Team Standup', style: { bgColor: '#dbeafe' } }, '', { text: 'Team Standup', style: { bgColor: '#dbeafe' } }, '', { text: 'Team Standup', style: { bgColor: '#dbeafe' } }],
         ['10:00 AM', { text: 'Design Review', style: { bgColor: '#fce7f3' } }, { text: 'Sprint Planning', style: { bgColor: '#d1fae5' } }, '', '', { text: 'Demo Day', style: { bgColor: '#fef3c7' } }],
         ['11:00 AM', '', { text: 'Client Call', style: { bgColor: '#fef3c7' } }, '', { text: 'Code Review', style: { bgColor: '#e0e7ff' } }, ''],
@@ -241,7 +234,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Expense Tracker', 'rose',
       ['Date', 'Description', 'Category', 'Amount', 'Payment', 'Notes'],
       [
-        ['Date', 'Description', 'Category', 'Amount', 'Payment', 'Notes'],
         ['2026-06-01', 'Grocery shopping', '🍕 Food', '$85.50', '💳 Card', 'Weekly groceries'],
         ['2026-06-02', 'Gas station', '⛽ Transport', '$45.00', '💳 Card', 'Full tank'],
         ['2026-06-03', 'Netflix subscription', '🎬 Entertainment', '$15.99', '🔄 Auto', 'Monthly'],
@@ -263,7 +255,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Workout Tracker', 'forest',
       ['Exercise', 'Sets', 'Reps', 'Weight', 'Rest', 'Notes'],
       [
-        ['Exercise', 'Sets', 'Reps', 'Weight', 'Rest', 'Notes'],
         [{ text: '🏋️ Chest', style: bold }, '', '', '', '', ''],
         ['Bench Press', '4', '10', '80 kg', '90s', 'Increase next week'],
         ['Incline Dumbbell', '3', '12', '30 kg', '60s', ''],
@@ -288,7 +279,6 @@ export const TEMPLATES: { name: string; desc: string; icon: string; builder: () 
     builder: () => buildTemplate('Travel Itinerary - Tokyo Trip', 'sunset',
       ['Day', 'Time', 'Activity', 'Location', 'Cost', 'Notes'],
       [
-        ['Day', 'Time', 'Activity', 'Location', 'Cost', 'Notes'],
         [{ text: '🛬 Day 1 - Arrival', style: { ...bold, bgColor: '#fff7ed' } }, '', '', '', '', ''],
         ['Day 1', '14:00', 'Arrive at Narita Airport', 'Narita', '—', 'Flight XY123'],
         ['Day 1', '16:00', 'Check-in Hotel', 'Shinjuku', '$120', 'Hotel Gracery'],

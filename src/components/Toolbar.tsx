@@ -9,7 +9,7 @@ import {
   Copy, ClipboardPaste, Eye, Snowflake,
   Trash2, CopyPlus, ChevronDown, FileDown, FileUp,
   Columns, Rows,
-  PanelLeftClose, PanelLeftOpen, Home
+  PanelLeftClose, PanelLeftOpen, Home, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, tableToPDF, downloadFile } from '../utils/export';
 import { importFromFile } from '../utils/import';
@@ -37,7 +37,7 @@ function ToolbarDivider() {
 
 export function Toolbar() {
   const store = useTableStore();
-  const { isDarkMode, showGrid, zoom, sidebarOpen } = store;
+  const { isDarkMode, showGrid, zoom, sidebarOpen, stylePanelOpen } = store;
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showRowMenu, setShowRowMenu] = useState(false);
@@ -145,6 +145,12 @@ export function Toolbar() {
           icon={sidebarOpen ? PanelLeftClose : PanelLeftOpen}
           label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           onClick={() => store.setSidebarOpen(!sidebarOpen)}
+        />
+        {/* Style panel toggle */}
+        <ToolbarButton
+          icon={stylePanelOpen ? PanelRightClose : PanelRightOpen}
+          label={stylePanelOpen ? 'Hide style panel' : 'Show style panel'}
+          onClick={() => store.setStylePanelOpen(!stylePanelOpen)}
         />
         <ToolbarDivider />
 

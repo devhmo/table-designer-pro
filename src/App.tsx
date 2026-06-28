@@ -9,14 +9,13 @@ import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
-  const { isDarkMode, tables, activeTableId, sidebarOpen } = useTableStore();
+  const { isDarkMode, tables, activeTableId, sidebarOpen, stylePanelOpen } = useTableStore();
   useKeyboard();
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
 
-  // Restore dark mode on mount
   useEffect(() => {
     const stored = useTableStore.getState();
     if (stored.isDarkMode) {
@@ -26,7 +25,6 @@ export default function App() {
 
   const hasActiveTable = activeTableId && tables.some(t => t.id === activeTableId);
 
-  // If no table is selected, show Dashboard
   if (!hasActiveTable) {
     return (
       <div className="flex flex-col h-screen bg-[var(--surface-1)]">
@@ -37,7 +35,6 @@ export default function App() {
     );
   }
 
-  // Table is selected → show workspace
   return (
     <div className="flex flex-col h-screen bg-[var(--surface-1)]">
       <ErrorBoundary>
@@ -53,9 +50,11 @@ export default function App() {
           <ErrorBoundary>
             <TableCanvas />
           </ErrorBoundary>
-          <ErrorBoundary>
-            <StylePanel />
-          </ErrorBoundary>
+          {stylePanelOpen && (
+            <ErrorBoundary>
+              <StylePanel />
+            </ErrorBoundary>
+          )}
         </div>
       </div>
     </div>
