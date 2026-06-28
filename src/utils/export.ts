@@ -19,13 +19,48 @@ function getCellText(cell: any): string {
 function getCellPlainText(cell: any): string {
   if (!cell) return '';
   const text = cell.content.text || '';
-  // Strip HTML tags if present
   if (cell.content.html) {
     const div = document.createElement('div');
     div.innerHTML = cell.content.html;
     return div.textContent || div.innerText || text;
   }
   return text;
+}
+
+/** Strip emojis and replace with text equivalents for PDF rendering */
+function stripEmojis(text: string): string {
+  return text
+    .replace(/\u2705/g, '[OK]')      // ✅
+    .replace(/\u274C/g, '[X]')       // ❌
+    .replace(/\u26A0\uFE0F/g, '[!]') // ⚠️
+    .replace(/\u23F3/g, '[...]')     // ⏳
+    .replace(/\u1F504/g, '[~]')      // 🔄
+    .replace(/\u1F4C8/g, '[^]')      // 📈
+    .replace(/\u2B50/g, '*')         // ⭐
+    .replace(/\u1F3AF/g, '[*]')      // 🎯
+    .replace(/\u1F680/g, '[>]')      // 🚀
+    .replace(/\u1F4DD/g, '[ ]')      // 📝
+    .replace(/\u1F4B0/g, '[$]')      // 💰
+    .replace(/\u1F465/g, '[+]')      // 👥
+    .replace(/\u1F4E6/g, '[#]')      // 📦
+    .replace(/\u1F4DA/g, '[B]')      // 📚
+    .replace(/\u2696/g, '[=]')       // ⚖
+    .replace(/\u1F4C5/g, '[D]')      // 📅
+    .replace(/\u1F9FE/g, '[R]')      // 🧾
+    .replace(/\u1F4AA/g, '[P]')      // 💪
+    .replace(/\u2708/g, '[~>]')      // ✈
+    .replace(/\u1F3E0/g, '[H]')      // 🏠
+    .replace(/\u1F4B5/g, '[$]')      // 💵
+    .replace(/\u1F468/g, '[M]')      // 👨
+    .replace(/\u1F4BC/g, '[W]')      // 💼
+    .replace(/\u1F4BB/g, '[PC]')     // 💻
+    .replace(/\u1F525/g, '[!!]')     // 🔥
+    .replace(/\u1F389/g, '[!]')      // 🎉
+    .replace(/[\u{1F300}-\u{1FFFF}]/gu, '') // Strip remaining emojis
+    .replace(/[\u{2600}-\u{27BF}]/gu, '')   // Strip misc symbols
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Strip variation selectors
+    .replace(/\u200D/g, '')                  // Strip zero-width joiner
+    ;
 }
 
 // ── CSS Color to RGB array ──
@@ -124,7 +159,7 @@ export async function tableToPDF(table: TableData, settings?: PDFExportSettings)
 
   // Prepare head & body
   const head = [visibleCols.map(col => col.name)];
-  const body = visibleRows.map(row => visibleCols.map(col => getCellPlainText(table.cells[`${row.id}:${col.id}`])));
+  const body = visibleRows.map(row => visibleCols.map(col => stripEmojis(getCellPlainText(table.cells[`${row.id}:${col.id}`]))));
 
   // Theme colors
   const headerBg = cssColorToRGB(theme.headerBg);
@@ -220,10 +255,10 @@ export async function tableToPDF(table: TableData, settings?: PDFExportSettings)
         const col = visibleCols[data.column.index];
         if (row && col) {
           const cell = cells[`${row.id}:${col.id}`];
-          if (cell?.content.type === 'checkbox') data.cell.text = [cell.content.checked ? '☑ Yes' : '☐ No'];
+          if (cell?.content.type === 'checkbox') data.cell.text = [cell.content.checked ? '[x] Yes' : '[ ] No'];
           if (cell?.content.type === 'progress') data.cell.text = [`${cell.content.value || 0}%`];
-          if (cell?.content.type === 'rating') data.cell.text = ['★'.repeat(cell.content.value || 0) + '☆'.repeat(5 - (cell.content.value || 0))];
-          if (cell?.content.type === 'badge' || cell?.content.type === 'tag') { data.cell.text = [cell.content.label || cell.content.text || '']; if (cell.content.color) data.cell.styles.textColor = cssColorToRGB(cell.content.color); }
+          if (cell?.content.type === 'rating') data.cell.text = ['*'.repeat(cell.content.value || 0) + '-'.repeat(5 - (cell.content.value || 0))];
+          if (cell?.content.type === 'badge' || cell?.content.type === 'tag') { data.cell.text = [stripEmojis(cell.content.label || cell.content.text || '')]; if (cell.content.color) data.cell.styles.textColor = cssColorToRGB(cell.content.color); }
           if (cell?.content.type === 'link') { data.cell.text = [cell.content.text || cell.content.href || '']; data.cell.styles.textColor = [59, 130, 246]; }
         }
       }
