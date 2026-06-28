@@ -395,18 +395,20 @@ export function TableCanvas() {
           </div>
           {table.columns.map((col, ci) => {
             if (col.hidden) return null;
+            // Column label: A, B, C, ... Z, AA, AB, ...
+            const colLabel = String.fromCharCode(65 + (ci % 26)) + (ci >= 26 ? String.fromCharCode(65 + Math.floor(ci / 26) - 1) : '');
             return (
               <div key={col.id}
                 className={`text-xs font-medium text-left relative group select-none ${col.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${dragOver === ci && dragType === 'col' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
                 style={{ width: col.width, minWidth: col.minWidth, height: 28, ...headerBorder, background: theme.headerBg, color: theme.headerText, fontWeight: theme.headerFontWeight as any }}
                 draggable onDragStart={(e) => handleDragStart(e, 'col', ci)} onDragOver={(e) => handleDragOver(e, 'col', ci)} onDrop={(e) => handleDrop(e, 'col', ci)} onDragEnd={handleDragEnd}>
-                <div className="px-2 h-full flex items-center cursor-pointer hover:opacity-80" onClick={() => selectColumn(ci)} onDoubleClick={(e) => { e.stopPropagation(); setEditingColumnHeader(ci); }}>
+                <div className="px-2 h-full flex items-center justify-center cursor-pointer hover:opacity-80" onClick={() => selectColumn(ci)} onDoubleClick={(e) => { e.stopPropagation(); setEditingColumnHeader(ci); }}>
                   {editingColumnHeader === ci ? (
                     <input ref={colRenameRef} className="input-field !py-0 !px-1 text-xs w-full" defaultValue={col.name}
                       onBlur={(e) => commitColRename(ci, e.currentTarget.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') commitColRename(ci, e.currentTarget.value); if (e.key === 'Escape') setEditingColumnHeader(null); e.stopPropagation(); }}
                       onClick={(e) => e.stopPropagation()} />
-                  ) : <><span>{col.name}</span>{col.frozen && <SnowflakeIcon />}</>}
+                  ) : <span>{colLabel}</span>}
                 </div>
                 <div className={`col-resize-handle absolute right-0 top-0 bottom-0 z-30 ${resizingCol?.index === ci ? 'active' : ''}`}
                   style={{ width: 16, cursor: 'col-resize' }} onMouseDown={(e) => handleColResizeStart(e, ci)} onTouchStart={(e) => handleColResizeTouchStart(e, ci)} />
