@@ -257,7 +257,7 @@ export const useTableStore = create<TableStore>()(
       },
 
       setActiveTable: (id: string) => {
-        set({ activeTableId: id, selection: null, activeCell: null, editingCell: null, editingColumnHeader: null });
+        set({ activeTableId: id || null, selection: null, activeCell: null, editingCell: null, editingColumnHeader: null });
       },
 
       getActiveTable: () => {
@@ -780,7 +780,6 @@ export const useTableStore = create<TableStore>()(
       name: 'table-designer-storage',
       partialize: (state) => ({
         tables: state.tables,
-        activeTableId: state.activeTableId,
         isDarkMode: state.isDarkMode,
         sidebarOpen: state.sidebarOpen,
         showGrid: state.showGrid,

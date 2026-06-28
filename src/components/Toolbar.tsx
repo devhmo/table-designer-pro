@@ -9,7 +9,7 @@ import {
   Copy, ClipboardPaste, Eye, Snowflake,
   Trash2, CopyPlus, ChevronDown, FileDown, FileUp,
   Columns, Rows,
-  PanelLeftClose, PanelLeftOpen
+  PanelLeftClose, PanelLeftOpen, Home
 } from 'lucide-react';
 import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, downloadFile } from '../utils/export';
 import { importFromFile } from '../utils/import';
@@ -130,6 +130,12 @@ export function Toolbar() {
   return (
     <div className="bg-[var(--surface-0)] border-b border-[var(--border)] px-2 py-1.5">
       <div className="flex items-center gap-0.5 flex-wrap">
+        {/* Home / Back to Dashboard */}
+        <ToolbarButton
+          icon={Home}
+          label="Back to Dashboard"
+          onClick={() => store.setActiveTable('')}
+        />
         {/* Sidebar toggle */}
         <ToolbarButton
           icon={sidebarOpen ? PanelLeftClose : PanelLeftOpen}

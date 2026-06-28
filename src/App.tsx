@@ -5,7 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { Toolbar } from './components/Toolbar';
 import { TableCanvas } from './components/TableCanvas';
 import { StylePanel } from './components/StylePanel';
-import { WelcomeScreen } from './components/WelcomeScreen';
+import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
@@ -16,7 +16,7 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
 
-  // Restore dark mode on mount (from persisted state)
+  // Restore dark mode on mount
   useEffect(() => {
     const stored = useTableStore.getState();
     if (stored.isDarkMode) {
@@ -24,15 +24,20 @@ export default function App() {
     }
   }, []);
 
-  // Auto-create first table if no tables exist
-  useEffect(() => {
-    if (tables.length === 0) {
-      useTableStore.getState().addTable('My First Table');
-    }
-  }, []);
-
   const hasActiveTable = activeTableId && tables.some(t => t.id === activeTableId);
 
+  // If no table is selected, show Dashboard
+  if (!hasActiveTable) {
+    return (
+      <div className="flex flex-col h-screen bg-[var(--surface-1)]">
+        <ErrorBoundary>
+          <Dashboard />
+        </ErrorBoundary>
+      </div>
+    );
+  }
+
+  // Table is selected → show workspace
   return (
     <div className="flex flex-col h-screen bg-[var(--surface-1)]">
       <ErrorBoundary>
@@ -46,13 +51,11 @@ export default function App() {
         )}
         <div className="flex-1 flex overflow-hidden">
           <ErrorBoundary>
-            {hasActiveTable ? <TableCanvas /> : <WelcomeScreen />}
+            <TableCanvas />
           </ErrorBoundary>
-          {hasActiveTable && (
-            <ErrorBoundary>
-              <StylePanel />
-            </ErrorBoundary>
-          )}
+          <ErrorBoundary>
+            <StylePanel />
+          </ErrorBoundary>
         </div>
       </div>
     </div>

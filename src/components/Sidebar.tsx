@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTableStore } from '../store/tableStore';
-import { Plus, MoreVertical, Copy, Trash2, Edit3, Check, X, GripVertical } from 'lucide-react';
+import { Plus, MoreVertical, Copy, Trash2, Edit3, Check, X, GripVertical, Home } from 'lucide-react';
 
 export function Sidebar() {
   const { tables, activeTableId, addTable, setActiveTable, removeTable, duplicateTable, renameTable } = useTableStore();
@@ -26,13 +26,22 @@ export function Sidebar() {
       <div className="p-3 border-b border-[var(--border)]">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Tables</span>
-          <button
-            onClick={() => addTable()}
-            className="toolbar-btn !w-6 !h-6"
-            title="New table"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setActiveTable('')}
+              className="toolbar-btn !w-6 !h-6"
+              title="Back to Dashboard"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => addTable()}
+              className="toolbar-btn !w-6 !h-6"
+              title="New table"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
