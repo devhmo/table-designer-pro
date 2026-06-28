@@ -56,6 +56,7 @@ export function TableCanvas() {
   const [selectStart, setSelectStart] = useState<{ row: number; col: number } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [isStylus, setIsStylus] = useState(false);
   const [lastTapCell, setLastTapCell] = useState<{ row: number; col: number; time: number } | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dragType, setDragType] = useState<'row' | 'col' | null>(null);
@@ -69,6 +70,25 @@ export function TableCanvas() {
   const scale = zoom / 100;
 
   if (!table || !theme) return null;
+
+  // ── Stylus detection ──
+  const lastPointerTypeRef = useRef<string>('touch');
+  useEffect(() => {
+    const handlePointerDown = (e: PointerEvent) => {
+      lastPointerTypeRef.current = e.pointerType;
+      if (e.pointerType === 'pen') setIsStylus(true);
+    };
+    const handlePointerUp = () => {
+      // Reset after a short delay
+      setTimeout(() => setIsStylus(false), 100);
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, []);
 
   useEffect(() => {
     return () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
@@ -196,6 +216,28 @@ export function TableCanvas() {
   // ── Touch ──
   const handleCellTouchStart = useCallback((rowIdx: number, colIdx: number, e: React.TouchEvent) => {
     e.stopPropagation();
+
+    // Detect if this is from a stylus/pen
+    const touch = e.touches[0];
+    const isPenTouch = (touch as any).touchType === 'stylus' ||
+      (touch as any).pointerType === 'pen' ||
+      lastPointerTypeRef.current === 'pen' ||
+      isStylus;
+
+    // STYLUS BEHAVIOR: tap = edit, drag = select
+    if (isPenTouch) {
+      activateCell(rowIdx, colIdx);
+      // Start editing immediately on stylus tap
+      const cell = table.cells[`${table.rows[rowIdx].id}:${table.columns[colIdx].id}`];
+      if (!cell?.locked) {
+        setEditingCell({ row: rowIdx, col: colIdx });
+      }
+      setSelectStart({ row: rowIdx, col: colIdx });
+      setIsSelecting(true);
+      return;
+    }
+
+    // FINGER BEHAVIOR: tap = select, double-tap = edit
     if (selectionMode) {
       if (selection) setSelection({ startRow: selection.startRow, startCol: selection.startCol, endRow: rowIdx, endCol: colIdx });
       else { setActiveCell({ row: rowIdx, col: colIdx }); setSelection({ startRow: rowIdx, startCol: colIdx, endRow: rowIdx, endCol: colIdx }); }
@@ -208,9 +250,9 @@ export function TableCanvas() {
     }
     setLastTapCell({ row: rowIdx, col: colIdx, time: now }); activateCell(rowIdx, colIdx); setSelectStart({ row: rowIdx, col: colIdx });
     longPressTimerRef.current = setTimeout(() => {
-      setContextMenu({ x: e.touches[0].clientX, y: e.touches[0].clientY, row: rowIdx, col: colIdx });
+      setContextMenu({ x: touch.clientX, y: touch.clientY, row: rowIdx, col: colIdx });
     }, 600);
-  }, [selectionMode, selection, lastTapCell, setActiveCell, setSelection, activateCell, startEditingCell]);
+  }, [selectionMode, selection, lastTapCell, isStylus, table, setActiveCell, setSelection, setEditingCell, activateCell, startEditingCell]);
 
   const handleCellTouchMove = useCallback((rowIdx: number, colIdx: number) => {
     if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
@@ -323,13 +365,19 @@ export function TableCanvas() {
     <div ref={canvasRef} className="table-canvas bg-[var(--surface-1)] relative"
       onClick={(e) => { if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('table-canvas')) { setContextMenu(null); setEditingColumnHeader(null); } }}>
 
-      {/* Selection Mode Toggle */}
-      <button className={`fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${selectionMode ? 'bg-blue-500 text-white scale-110' : 'bg-[var(--surface-0)] text-[var(--text-secondary)] border border-[var(--border)]'}`}
+      {/* Selection Mode Toggle — also serves as stylus indicator */}
+      <button className={`fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all
+        ${isStylus ? 'bg-purple-500 text-white scale-110' : selectionMode ? 'bg-blue-500 text-white scale-110' : 'bg-[var(--surface-0)] text-[var(--text-secondary)] border border-[var(--border)]'}`}
         onClick={() => { setSelectionMode(!selectionMode); if (selectionMode) setSelection(null); }}
-        title={selectionMode ? 'Exit selection mode' : 'Enter selection mode'}>
+        title={isStylus ? 'Stylus detected — tap to edit, drag to select' : selectionMode ? 'Exit selection mode' : 'Enter selection mode'}>
         <Crosshair className="w-5 h-5" />
       </button>
-      {selectionMode && (
+      {isStylus && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 bg-purple-500 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg animate-fadeIn">
+          Stylus Mode — Tap to edit, drag to select
+        </div>
+      )}
+      {!isStylus && selectionMode && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 bg-blue-500 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg animate-fadeIn">
           Selection Mode — Tap cells to select
         </div>
