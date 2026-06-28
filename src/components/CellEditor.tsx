@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { useTableStore } from '../store/tableStore';
 import type { Cell } from '../types';
 
@@ -11,6 +11,7 @@ interface CellEditorProps {
 export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
   const ref = useRef<HTMLDivElement>(null);
   const committedRef = useRef(false);
+  const focusAttemptsRef = useRef(0);
 
   const updateCellContent = useTableStore(s => s.updateCellContent);
   const setEditingCell = useTableStore(s => s.setEditingCell);
@@ -33,11 +34,23 @@ export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
     }
   }, [rowIndex, colIndex, updateCellContent]);
 
-  const handleBlur = useCallback(() => {
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    // Check if the related target is within our editor (e.g., clicking format buttons)
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (relatedTarget && ref.current?.contains(relatedTarget)) {
+      return; // Don't commit if focus moved within the editor
+    }
+
+    // Check if a format button was clicked
+    const activeEl = document.activeElement;
+    if (activeEl && ref.current?.contains(activeEl)) {
+      return;
+    }
+
     commitContent();
     setTimeout(() => {
       setEditingCell(null);
-    }, 150);
+    }, 200);
   }, [commitContent, setEditingCell]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -98,51 +111,73 @@ export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
     }
   }, [getActiveTable, rowIndex, resizeRow]);
 
+  // Focus strategy: aggressive retries for mobile
   useEffect(() => {
     committedRef.current = false;
-    // Multiple focus strategies for mobile + desktop compatibility
-    const focusEditor = () => {
-      if (!ref.current) return;
-      ref.current.focus({ preventScroll: true });
+    focusAttemptsRef.current = 0;
 
-      // For mobile: ensure the element is focusable
-      if ('ontouchstart' in window) {
-        ref.current.setAttribute('contenteditable', 'true');
-        // Trigger a touch to activate keyboard on iOS/Android
-        const touchEvent = new TouchEvent('touchstart', { bubbles: true });
-        ref.current.dispatchEvent(touchEvent);
-      }
+    const tryFocus = () => {
+      if (!ref.current) return false;
 
-      // Place cursor at end
       try {
-        const range = document.createRange();
-        const sel = window.getSelection();
-        if (ref.current.childNodes.length > 0) {
-          range.selectNodeContents(ref.current);
-          range.collapse(false);
-        } else {
-          range.setStart(ref.current, 0);
-          range.collapse(true);
+        ref.current.focus({ preventScroll: true });
+
+        // Check if focus actually worked
+        if (document.activeElement === ref.current) {
+          // Place cursor at end
+          const range = document.createRange();
+          const sel = window.getSelection();
+          if (ref.current.childNodes.length > 0) {
+            range.selectNodeContents(ref.current);
+            range.collapse(false);
+          } else {
+            range.setStart(ref.current, 0);
+            range.collapse(true);
+          }
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+          return true;
         }
-        sel?.removeAllRanges();
-        sel?.addRange(range);
       } catch {
-        // Selection API may fail on some mobile browsers
+        // Ignore errors
       }
+      return false;
     };
 
-    // Try immediately and via rAF for different browsers
-    focusEditor();
-    requestAnimationFrame(focusEditor);
-    // Extra fallback for stubborn mobile browsers
-    const timer = setTimeout(focusEditor, 50);
-    return () => clearTimeout(timer);
+    // Strategy 1: Immediate
+    if (tryFocus()) return;
+
+    // Strategy 2: requestAnimationFrame
+    const raf = requestAnimationFrame(() => {
+      if (tryFocus()) return;
+
+      // Strategy 3: Short delay
+      const t1 = setTimeout(() => {
+        if (tryFocus()) return;
+
+        // Strategy 4: Longer delay (for stubborn mobile browsers)
+        const t2 = setTimeout(() => {
+          tryFocus();
+        }, 100);
+
+        return () => clearTimeout(t2);
+      }, 30);
+
+      return () => clearTimeout(t1);
+    });
+
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const initialContent = cell?.content.html || cell?.content.text || '';
 
   return (
-    <div className="relative w-full h-full">
+    <div
+      className="relative w-full h-full"
+      // Prevent touch events from bubbling up to the cell
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    >
       <div
         ref={ref}
         contentEditable
@@ -154,9 +189,10 @@ export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onInput={handleInput}
-        // Touch: prevent scroll while editing
+        // Prevent the td's touch handlers from firing
         onTouchStart={(e) => e.stopPropagation()}
-        // Ensure mobile keyboard activates
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
         tabIndex={0}
         role="textbox"
         aria-label="Cell editor"
@@ -171,24 +207,24 @@ export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
       >
         <button
           className="toolbar-btn !w-6 !h-6 !text-xs"
-          onMouseDown={(e) => { e.preventDefault(); document.execCommand('bold'); }}
-          onTouchStart={(e) => { e.preventDefault(); document.execCommand('bold'); }}
+          onMouseDown={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('bold'); }}
+          onTouchStart={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('bold'); }}
           title="Bold"
         >
           <strong>B</strong>
         </button>
         <button
           className="toolbar-btn !w-6 !h-6 !text-xs"
-          onMouseDown={(e) => { e.preventDefault(); document.execCommand('italic'); }}
-          onTouchStart={(e) => { e.preventDefault(); document.execCommand('italic'); }}
+          onMouseDown={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('italic'); }}
+          onTouchStart={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('italic'); }}
           title="Italic"
         >
           <em>I</em>
         </button>
         <button
           className="toolbar-btn !w-6 !h-6 !text-xs"
-          onMouseDown={(e) => { e.preventDefault(); document.execCommand('underline'); }}
-          onTouchStart={(e) => { e.preventDefault(); document.execCommand('underline'); }}
+          onMouseDown={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('underline'); }}
+          onTouchStart={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('underline'); }}
           title="Underline"
         >
           <u>U</u>

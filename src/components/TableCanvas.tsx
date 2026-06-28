@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useTableStore, getCoveredCellKeys } from '../store/tableStore';
 import { CellEditor } from './CellEditor';
-import { Plus } from 'lucide-react';
+import { Plus, Crosshair } from 'lucide-react';
 
 export function TableCanvas() {
   const store = useTableStore();
@@ -13,13 +13,17 @@ export function TableCanvas() {
   const [resizingRow, setResizingRow] = useState<{ index: number; startY: number; startHeight: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: number; col: number } | null>(null);
 
-  // Selection drag state
+  // Selection state
   const [selectStart, setSelectStart] = useState<{ row: number; col: number } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
 
-  // Touch state for long-press and double-tap
-  const [touchTimer, setTouchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [lastTap, setLastTap] = useState<{ row: number; col: number; time: number } | null>(null);
+  // Selection mode toggle (for mobile)
+  const [selectionMode, setSelectionMode] = useState(false);
+
+  // Touch tracking
+  const [lastTapCell, setLastTapCell] = useState<{ row: number; col: number; time: number } | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPressRef = useRef(false);
 
   // Drag & drop state
   const [dragType, setDragType] = useState<'row' | 'col' | null>(null);
@@ -32,6 +36,13 @@ export function TableCanvas() {
   const { theme } = table;
   const scale = store.zoom / 100;
 
+  // ── Cleanup long-press timer on unmount ──
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
+
   // ── Column Resize ──
   const handleColResizeStart = (e: React.MouseEvent, index: number) => {
     e.preventDefault();
@@ -41,6 +52,7 @@ export function TableCanvas() {
 
   const handleColResizeTouchStart = (e: React.TouchEvent, index: number) => {
     e.stopPropagation();
+    e.preventDefault();
     const touch = e.touches[0];
     setResizingCol({ index, startX: touch.clientX, startWidth: table.columns[index].width });
   };
@@ -53,6 +65,7 @@ export function TableCanvas() {
 
   const handleRowResizeTouchStart = (e: React.TouchEvent, index: number) => {
     e.stopPropagation();
+    e.preventDefault();
     const touch = e.touches[0];
     setResizingRow({ index, startY: touch.clientY, startHeight: table.rows[index].height });
   };
@@ -74,11 +87,13 @@ export function TableCanvas() {
     };
     const handleTouchMove = (e: TouchEvent) => {
       if (resizingCol) {
+        e.preventDefault();
         const touch = e.touches[0];
         const delta = touch.clientX - resizingCol.startX;
         store.resizeColumn(resizingCol.index, resizingCol.startWidth + delta);
       }
       if (resizingRow) {
+        e.preventDefault();
         const touch = e.touches[0];
         const delta = touch.clientY - resizingRow.startY;
         store.resizeRow(resizingRow.index, resizingRow.startHeight + delta);
@@ -153,88 +168,69 @@ export function TableCanvas() {
     setDragOver(null);
   };
 
-  // ── Cell Interactions ──
+  // ── Unified cell activation (used by both mouse and touch) ──
+  const activateCell = useCallback((rowIdx: number, colIdx: number) => {
+    store.setActiveCell({ row: rowIdx, col: colIdx });
+    store.setSelection(null);
+    store.setEditingCell(null);
+    store.setEditingColumnHeader(null);
+    setContextMenu(null);
+  }, [store]);
+
+  const startEditingCell = useCallback((rowIdx: number, colIdx: number) => {
+    const cell = table.cells[`${table.rows[rowIdx].id}:${table.columns[colIdx].id}`];
+    if (cell?.locked) return;
+    store.setActiveCell({ row: rowIdx, col: colIdx });
+    store.setEditingCell({ row: rowIdx, col: colIdx });
+  }, [table, store]);
+
+  // ── Mouse handlers ──
   const handleCellMouseDown = useCallback((rowIdx: number, colIdx: number, e: React.MouseEvent) => {
     if (e.button === 2) return;
     e.stopPropagation();
-    store.setEditingColumnHeader(null);
-    setContextMenu(null);
 
+    // In selection mode: add to selection
+    if (selectionMode) {
+      if (e.shiftKey && store.activeCell) {
+        store.setSelection({
+          startRow: store.activeCell.row, startCol: store.activeCell.col,
+          endRow: rowIdx, endCol: colIdx,
+        });
+      } else {
+        store.setActiveCell({ row: rowIdx, col: colIdx });
+        if (store.selection) {
+          // Extend selection
+          store.setSelection({
+            startRow: store.selection.startRow, startCol: store.selection.startCol,
+            endRow: rowIdx, endCol: colIdx,
+          });
+        } else {
+          store.setSelection({
+            startRow: rowIdx, startCol: colIdx,
+            endRow: rowIdx, endCol: colIdx,
+          });
+        }
+      }
+      setSelectStart({ row: rowIdx, col: colIdx });
+      setIsSelecting(true);
+      return;
+    }
+
+    // Normal mode
     if (e.shiftKey && store.activeCell) {
       store.setSelection({
         startRow: store.activeCell.row, startCol: store.activeCell.col,
         endRow: rowIdx, endCol: colIdx,
       });
+    } else if (store.activeCell?.row === rowIdx && store.activeCell?.col === colIdx && !store.editingCell) {
+      // Clicking active cell → edit
+      startEditingCell(rowIdx, colIdx);
     } else {
-      // If clicking the already-active cell, enter edit mode
-      if (store.activeCell?.row === rowIdx && store.activeCell?.col === colIdx && !store.editingCell) {
-        store.setEditingCell({ row: rowIdx, col: colIdx });
-      } else {
-        store.setActiveCell({ row: rowIdx, col: colIdx });
-        store.setSelection(null);
-        store.setEditingCell(null);
-      }
+      activateCell(rowIdx, colIdx);
       setSelectStart({ row: rowIdx, col: colIdx });
       setIsSelecting(true);
     }
-  }, [store]);
-
-  // ── Touch handlers for mobile ──
-  const handleCellTouchStart = useCallback((rowIdx: number, colIdx: number, e: React.TouchEvent) => {
-    e.stopPropagation();
-    store.setEditingColumnHeader(null);
-    setContextMenu(null);
-
-    const now = Date.now();
-
-    // Double-tap detection
-    if (lastTap && lastTap.row === rowIdx && lastTap.col === colIdx && now - lastTap.time < 350) {
-      // Double tap → edit
-      const cell = table.cells[`${table.rows[rowIdx].id}:${table.columns[colIdx].id}`];
-      if (!cell?.locked) {
-        store.setEditingCell({ row: rowIdx, col: colIdx });
-      }
-      setLastTap(null);
-      if (touchTimer) { clearTimeout(touchTimer); setTouchTimer(null); }
-      return;
-    }
-
-    setLastTap({ row: rowIdx, col: colIdx, time: now });
-
-    // Single tap → select (delayed to check for double-tap)
-    const timer = setTimeout(() => {
-      store.setActiveCell({ row: rowIdx, col: colIdx });
-      store.setSelection(null);
-      store.setEditingCell(null);
-      setSelectStart({ row: rowIdx, col: colIdx });
-      setIsSelecting(true);
-    }, 200);
-    setTouchTimer(timer);
-
-    // Long-press → context menu
-    const longPressTimer = setTimeout(() => {
-      store.setActiveCell({ row: rowIdx, col: colIdx });
-      const touch = e.touches[0];
-      setContextMenu({ x: touch.clientX, y: touch.clientY, row: rowIdx, col: colIdx });
-    }, 600);
-    setTouchTimer(longPressTimer);
-  }, [store, table, lastTap, touchTimer]);
-
-  const handleCellTouchMove = useCallback((rowIdx: number, colIdx: number) => {
-    if (isSelecting && selectStart) {
-      // Cancel long-press if finger moves
-      if (touchTimer) { clearTimeout(touchTimer); setTouchTimer(null); }
-      store.setSelection({
-        startRow: selectStart.row, startCol: selectStart.col,
-        endRow: rowIdx, endCol: colIdx,
-      });
-    }
-  }, [isSelecting, selectStart, store, touchTimer]);
-
-  const handleCellTouchEnd = useCallback(() => {
-    setIsSelecting(false);
-    setSelectStart(null);
-  }, []);
+  }, [store, selectionMode, activateCell, startEditingCell]);
 
   const handleCellMouseEnter = useCallback((rowIdx: number, colIdx: number) => {
     if (isSelecting && selectStart) {
@@ -254,11 +250,80 @@ export function TableCanvas() {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
+  // ── Touch handlers (FIXED: immediate activation, no delay) ──
+  const handleCellTouchStart = useCallback((rowIdx: number, colIdx: number, e: React.TouchEvent) => {
+    e.stopPropagation();
+    didLongPressRef.current = false;
+
+    // In selection mode: just toggle selection
+    if (selectionMode) {
+      if (store.selection) {
+        store.setSelection({
+          startRow: store.selection.startRow, startCol: store.selection.startCol,
+          endRow: rowIdx, endCol: colIdx,
+        });
+      } else {
+        store.setActiveCell({ row: rowIdx, col: colIdx });
+        store.setSelection({
+          startRow: rowIdx, startCol: colIdx,
+          endRow: rowIdx, endCol: colIdx,
+        });
+      }
+      setSelectStart({ row: rowIdx, col: colIdx });
+      setIsSelecting(true);
+      return;
+    }
+
+    // Check for double-tap
+    const now = Date.now();
+    if (lastTapCell && lastTapCell.row === rowIdx && lastTapCell.col === colIdx && now - lastTapCell.time < 350) {
+      // Double-tap → edit
+      startEditingCell(rowIdx, colIdx);
+      setLastTapCell(null);
+      if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
+      return;
+    }
+    setLastTapCell({ row: rowIdx, col: colIdx, time: now });
+
+    // Activate cell immediately on first tap
+    activateCell(rowIdx, colIdx);
+    setSelectStart({ row: rowIdx, col: colIdx });
+
+    // Long-press for context menu
+    longPressTimerRef.current = setTimeout(() => {
+      didLongPressRef.current = true;
+      const touch = e.touches[0];
+      setContextMenu({ x: touch.clientX, y: touch.clientY, row: rowIdx, col: colIdx });
+    }, 600);
+  }, [store, selectionMode, lastTapCell, activateCell, startEditingCell]);
+
+  const handleCellTouchMove = useCallback((rowIdx: number, colIdx: number) => {
+    // Cancel long-press if finger moves
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    // If we were in a selection drag
+    if (selectStart) {
+      store.setSelection({
+        startRow: selectStart.row, startCol: selectStart.col,
+        endRow: rowIdx, endCol: colIdx,
+      });
+    }
+  }, [selectStart, store]);
+
+  const handleCellTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    setIsSelecting(false);
+    setSelectStart(null);
+  }, []);
+
   const handleCellDoubleClick = useCallback((rowIdx: number, colIdx: number) => {
-    const cell = table.cells[`${table.rows[rowIdx].id}:${table.columns[colIdx].id}`];
-    if (cell?.locked) return;
-    store.setEditingCell({ row: rowIdx, col: colIdx });
-  }, [table, store]);
+    startEditingCell(rowIdx, colIdx);
+  }, [startEditingCell]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, rowIdx: number, colIdx: number) => {
     e.preventDefault();
@@ -281,13 +346,12 @@ export function TableCanvas() {
     return store.activeCell?.row === rowIdx && store.activeCell?.col === colIdx;
   }, [store.activeCell]);
 
-  // ── Style Helpers (FIXED: no double background) ──
+  // ── Style Helpers ──
   const getCellStyle = useCallback((cell: any): React.CSSProperties => {
     if (!cell) return {};
     const s = cell.style;
     const style: React.CSSProperties = {};
 
-    // Background: gradient takes priority, then bgColor
     if (s.gradient) {
       style.background = s.gradient;
     } else if (s.bgColor) {
@@ -320,7 +384,6 @@ export function TableCanvas() {
     return style;
   }, []);
 
-  // ── Theme-based border style for cells ──
   const getThemeBorder = useCallback((): React.CSSProperties => {
     return {
       borderBottom: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}`,
@@ -416,11 +479,10 @@ export function TableCanvas() {
     };
   }, [contextMenu]);
 
-  // ── Context Menu Position (viewport-aware) ──
   const getContextMenuPos = () => {
     if (!contextMenu) return { left: 0, top: 0 };
     const menuW = 200;
-    const menuH = 380;
+    const menuH = 400;
     let x = contextMenu.x;
     let y = contextMenu.y;
     if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 8;
@@ -435,7 +497,7 @@ export function TableCanvas() {
   return (
     <div
       ref={canvasRef}
-      className="table-canvas bg-[var(--surface-1)]"
+      className="table-canvas bg-[var(--surface-1)] relative"
       onClick={(e) => {
         if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('table-canvas')) {
           setContextMenu(null);
@@ -443,6 +505,32 @@ export function TableCanvas() {
         }
       }}
     >
+      {/* Selection Mode Toggle Button (floating, for mobile) */}
+      <button
+        className={`fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all
+          ${selectionMode
+            ? 'bg-blue-500 text-white scale-110'
+            : 'bg-[var(--surface-0)] text-[var(--text-secondary)] border border-[var(--border)]'
+          }`}
+        onClick={() => {
+          setSelectionMode(!selectionMode);
+          if (selectionMode) {
+            // Exiting selection mode: clear selection
+            store.setSelection(null);
+          }
+        }}
+        title={selectionMode ? 'Exit selection mode' : 'Enter selection mode'}
+      >
+        <Crosshair className="w-5 h-5" />
+      </button>
+
+      {/* Selection mode indicator */}
+      {selectionMode && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 bg-blue-500 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg animate-fadeIn">
+          Selection Mode — Tap cells to select, tap button again to exit
+        </div>
+      )}
+
       <div
         className="inline-block min-w-full p-4"
         style={{ zoom: `${scale}` }}
@@ -455,10 +543,7 @@ export function TableCanvas() {
             <thead>
               <tr>
                 <th className="sticky top-0 z-20 bg-[var(--surface-2)]"
-                  style={{
-                    width: 32, minWidth: 32, height: 28,
-                    ...themeBorder,
-                  }}
+                  style={{ width: 32, minWidth: 32, height: 28, ...themeBorder }}
                   onClick={(e) => { e.stopPropagation(); store.selectAll(); }}>
                   <div className="w-full h-full flex items-center justify-center cursor-pointer hover:bg-[var(--surface-3)]">
                     <div className="w-2 h-2 rounded-sm bg-[var(--text-tertiary)]" />
@@ -468,7 +553,7 @@ export function TableCanvas() {
                   <th
                     key={col.id}
                     className={`sticky top-0 z-20 text-xs font-medium text-left relative group select-none
-                      ${col.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-[var(--surface-2)]'}
+                      ${col.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
                       ${col.hidden ? 'hidden' : ''}
                       ${dragOver === ci && dragType === 'col' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
                     style={{
@@ -513,8 +598,10 @@ export function TableCanvas() {
                         </>
                       )}
                     </div>
+                    {/* Column resize handle — wider for touch */}
                     <div
-                      className={`col-resize-handle absolute right-0 top-0 bottom-0 w-2 z-30 ${resizingCol?.index === ci ? 'active' : ''}`}
+                      className={`col-resize-handle absolute right-0 top-0 bottom-0 z-30 ${resizingCol?.index === ci ? 'active' : ''}`}
+                      style={{ width: 16, cursor: 'col-resize' }}
                       onMouseDown={(e) => handleColResizeStart(e, ci)}
                       onTouchStart={(e) => handleColResizeTouchStart(e, ci)}
                     />
@@ -531,14 +618,11 @@ export function TableCanvas() {
             <tbody>
               {table.rows.map((row, ri) => (
                 <tr key={row.id} className={`${row.hidden ? 'hidden' : ''} ${dragOver === ri && dragType === 'row' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}>
-                  {/* Row header — drag handle + resize */}
+                  {/* Row header */}
                   <td
                     className={`sticky left-0 z-10 text-xs text-center cursor-grab select-none active:cursor-grabbing relative
                       ${row.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-[var(--surface-2)]'}`}
-                    style={{
-                      width: 32, minWidth: 32, height: row.height,
-                      ...themeBorder,
-                    }}
+                    style={{ width: 32, minWidth: 32, height: row.height, ...themeBorder }}
                     draggable
                     onDragStart={(e) => handleDragStart(e, 'row', ri)}
                     onDragOver={(e) => handleDragOver(e, 'row', ri)}
@@ -548,9 +632,10 @@ export function TableCanvas() {
                   >
                     <span className="text-[var(--text-tertiary)]">{ri + 1}</span>
                     {row.frozen && <SnowflakeIcon />}
-                    {/* Row resize handle */}
+                    {/* Row resize handle — taller for touch */}
                     <div
-                      className={`row-resize-handle absolute bottom-0 left-0 right-0 h-1.5 z-30 ${resizingRow?.index === ri ? 'active' : ''}`}
+                      className={`row-resize-handle absolute bottom-0 left-0 right-0 z-30 ${resizingRow?.index === ri ? 'active' : ''}`}
+                      style={{ height: 16, cursor: 'row-resize' }}
                       onMouseDown={(e) => handleRowResizeStart(e, ri)}
                       onTouchStart={(e) => handleRowResizeTouchStart(e, ri)}
                     />
@@ -559,7 +644,6 @@ export function TableCanvas() {
                   {table.columns.map((col, colIdx) => {
                     if (col.hidden) return null;
                     const cellKey = `${row.id}:${col.id}`;
-
                     if (coveredKeys.has(cellKey)) return null;
 
                     const cell = table.cells[cellKey];
@@ -568,12 +652,9 @@ export function TableCanvas() {
                     const selected = isSelected(ri, colIdx);
                     const active = isActive(ri, colIdx);
 
-                    // Determine background: cell style > theme alternate > theme cell bg
                     let cellBg: string | undefined;
-                    if (cell?.style.gradient) {
-                      cellBg = undefined; // gradient is in cellStyle
-                    } else if (cell?.style.bgColor) {
-                      cellBg = undefined; // bgColor is in cellStyle
+                    if (cell?.style.gradient || cell?.style.bgColor) {
+                      cellBg = undefined;
                     } else {
                       cellBg = ri % 2 === 1 ? theme.alternateRowBg : theme.cellBg;
                     }
@@ -624,7 +705,6 @@ export function TableCanvas() {
                 </tr>
               ))}
 
-              {/* Add row button */}
               <tr>
                 <td colSpan={table.columns.length + 2} className="bg-[var(--surface-2)] text-center"
                   style={{ height: 32, ...themeBorder }}>
