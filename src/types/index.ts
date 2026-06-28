@@ -103,10 +103,14 @@ export interface TableData {
 }
 
 export interface HistoryEntry {
-  tableId: string;
-  snapshot: string; // JSON stringified TableData
-  timestamp: number;
   description: string;
+  timestamp: number;
+  snapshot: StoreSnapshot;
+}
+
+export interface StoreSnapshot {
+  tables: TableData[];
+  activeTableId: string | null;
 }
 
 export interface Selection {

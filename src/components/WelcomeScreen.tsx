@@ -1,6 +1,8 @@
 import { useTableStore } from '../store/tableStore';
 import { THEME_PRESETS } from '../utils/themes';
+import { importFromFile } from '../utils/import';
 import { Plus, Table2, Sparkles, Upload, FileSpreadsheet } from 'lucide-react';
+import type { TableData } from '../types';
 
 
 const TEMPLATES = [
@@ -23,24 +25,7 @@ export function WelcomeScreen() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       try {
-        let table: TableData;
-        if (file.name.endsWith('.csv')) {
-          const { importCSV } = await import('../utils/import');
-          table = await importCSV(file);
-        } else if (file.name.match(/\.xlsx?$/)) {
-          const { importExcel } = await import('../utils/import');
-          table = await importExcel(file);
-        } else if (file.name.endsWith('.json')) {
-          const { importJSON } = await import('../utils/import');
-          table = await importJSON(file);
-        } else if (file.name.endsWith('.md')) {
-          const { importMarkdown } = await import('../utils/import');
-          const text = await file.text();
-          table = importMarkdown(text, file.name.replace(/\.md$/, ''));
-        } else {
-          alert('Unsupported file format');
-          return;
-        }
+        const table = await importFromFile(file);
         importTable(table);
       } catch (err: any) {
         alert('Import failed: ' + err.message);

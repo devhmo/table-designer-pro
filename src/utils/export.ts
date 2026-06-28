@@ -39,6 +39,9 @@ export function tableToHTML(table: TableData): string {
       if (cs?.italic) styles.push(`font-style:italic`);
       if (cs?.fontSize) styles.push(`font-size:${cs.fontSize}px`);
       if (cs?.fontFamily) styles.push(`font-family:${cs.fontFamily}`);
+      if (cs?.padding) styles.push(`padding:${cs.padding}px`);
+      if (cs?.borderRadius) styles.push(`border-radius:${cs.borderRadius}px`);
+      if (cs?.opacity !== undefined && cs.opacity < 1) styles.push(`opacity:${cs.opacity}`);
       if (styles.length) attrs.push(`style="${styles.join(';')}"`);
       html += `<td ${attrs.join(' ')}>${text}</td>`;
     }
@@ -90,7 +93,7 @@ export function tableToJSON(table: TableData): string {
 export async function tableToExcel(table: TableData): Promise<void> {
   const XLSX = await import('xlsx');
   const visibleCols = table.columns.filter(c => !c.hidden);
-  const data: any[][] = [visibleCols.map(c => c.name)];
+  const data: string[][] = [visibleCols.map(c => c.name)];
   for (const row of table.rows.filter(r => !r.hidden)) {
     const rowData = visibleCols.map(col => {
       const cell = table.cells[`${row.id}:${col.id}`];
@@ -99,7 +102,6 @@ export async function tableToExcel(table: TableData): Promise<void> {
     data.push(rowData);
   }
   const ws = XLSX.utils.aoa_to_sheet(data);
-  // Set column widths
   ws['!cols'] = visibleCols.map(col => ({ wch: Math.max(10, Math.round(col.width / 8)) }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, table.name.substring(0, 31));
@@ -109,7 +111,7 @@ export async function tableToExcel(table: TableData): Promise<void> {
 export async function tableToImage(table: TableData, format: 'png' | 'jpeg' = 'png'): Promise<void> {
   const html2canvas = (await import('html2canvas')).default;
 
-  // Render the table HTML into an offscreen container
+  // Create a self-contained HTML with inline styles (no CSS variables)
   const container = document.createElement('div');
   container.innerHTML = tableToHTML(table);
   container.style.position = 'fixed';
@@ -118,26 +120,36 @@ export async function tableToImage(table: TableData, format: 'png' | 'jpeg' = 'p
   container.style.width = '1400px';
   container.style.padding = '20px';
   container.style.background = '#f8fafc';
+  container.style.fontFamily = table.theme.fontFamily;
   document.body.appendChild(container);
 
+  // Wait for fonts and layout
+  await new Promise(resolve => setTimeout(resolve, 100));
+
   try {
-    const canvas = await html2canvas(container.firstElementChild as HTMLElement, {
+    const target = container.querySelector('table') || container;
+    const canvas = await html2canvas(target as HTMLElement, {
       scale: 2,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: '#f8fafc',
+      logging: false,
     });
 
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${table.name}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, `image/${format}`);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, `image/${format}`, format === 'jpeg' ? 0.92 : undefined);
+    });
+
+    if (!blob) throw new Error('Failed to create image blob');
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${table.name}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   } finally {
     document.body.removeChild(container);
   }
@@ -156,11 +168,16 @@ export async function tableToSVG(table: TableData): Promise<void> {
   container.style.background = '#f8fafc';
   document.body.appendChild(container);
 
+  await new Promise(resolve => setTimeout(resolve, 100));
+
   try {
-    const canvas = await html2canvas(container.firstElementChild as HTMLElement, {
+    const target = container.querySelector('table') || container;
+    const canvas = await html2canvas(target as HTMLElement, {
       scale: 2,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: '#f8fafc',
+      logging: false,
     });
 
     const dataUrl = canvas.toDataURL('image/png');

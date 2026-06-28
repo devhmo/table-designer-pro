@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import { useTableStore } from '../store/tableStore';
 
 export function useKeyboard() {
-  const store = useTableStore();
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const isEditing = document.querySelector('[contenteditable="true"]:focus') ||
         document.querySelector('input:focus, textarea:focus, select:focus');
+
+      const store = useTableStore.getState();
 
       // Global shortcuts (work even when editing)
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -104,27 +104,9 @@ export function useKeyboard() {
           store.updateCellContent(activeCell.row, activeCell.col, { text: '', html: '' });
         }
       }
-
-      // Bold
-      if ((e.ctrlKey || e.metaKey) && e.key === 'b' && store.editingCell) {
-        e.preventDefault();
-        document.execCommand('bold');
-      }
-
-      // Italic
-      if ((e.ctrlKey || e.metaKey) && e.key === 'i' && store.editingCell) {
-        e.preventDefault();
-        document.execCommand('italic');
-      }
-
-      // Underline
-      if ((e.ctrlKey || e.metaKey) && e.key === 'u' && store.editingCell) {
-        e.preventDefault();
-        document.execCommand('underline');
-      }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [store]);
+  }, []); // Empty deps — uses getState() inside handler
 }

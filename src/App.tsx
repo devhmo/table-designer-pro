@@ -6,6 +6,7 @@ import { Toolbar } from './components/Toolbar';
 import { TableCanvas } from './components/TableCanvas';
 import { StylePanel } from './components/StylePanel';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   const { isDarkMode, tables, activeTableId, sidebarOpen } = useTableStore();
@@ -15,7 +16,7 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
 
-  // Auto-create first table
+  // Auto-create first table if no tables exist (fresh start or empty state)
   useEffect(() => {
     if (tables.length === 0) {
       useTableStore.getState().addTable('My First Table');
@@ -26,12 +27,24 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-[var(--surface-1)]">
-      <Toolbar />
+      <ErrorBoundary>
+        <Toolbar />
+      </ErrorBoundary>
       <div className="flex flex-1 overflow-hidden">
-        {sidebarOpen && <Sidebar />}
+        {sidebarOpen && (
+          <ErrorBoundary>
+            <Sidebar />
+          </ErrorBoundary>
+        )}
         <div className="flex-1 flex overflow-hidden">
-          {hasActiveTable ? <TableCanvas /> : <WelcomeScreen />}
-          {hasActiveTable && <StylePanel />}
+          <ErrorBoundary>
+            {hasActiveTable ? <TableCanvas /> : <WelcomeScreen />}
+          </ErrorBoundary>
+          {hasActiveTable && (
+            <ErrorBoundary>
+              <StylePanel />
+            </ErrorBoundary>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { useTableStore } from '../store/tableStore';
-import type { Cell, CellContent } from '../types';
+import type { Cell } from '../types';
 
 interface CellEditorProps {
   rowIndex: number;
@@ -9,57 +9,59 @@ interface CellEditorProps {
 }
 
 export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
-  const store = useTableStore();
   const ref = useRef<HTMLDivElement>(null);
-  const [showTypeMenu, setShowTypeMenu] = useState(false);
+  const committedRef = useRef(false);
 
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.focus();
-      // Place cursor at end
-      const range = document.createRange();
-      const sel = window.getSelection();
-      if (ref.current.childNodes.length > 0) {
-        range.selectNodeContents(ref.current);
-        range.collapse(false);
-      }
-      sel?.removeAllRanges();
-      sel?.addRange(range);
+  // Get store functions directly (not the whole store object)
+  const updateCellContent = useTableStore(s => s.updateCellContent);
+  const setEditingCell = useTableStore(s => s.setEditingCell);
+  const setActiveCell = useTableStore(s => s.setActiveCell);
+  const getActiveTable = useTableStore(s => s.getActiveTable);
+  const resizeRow = useTableStore(s => s.resizeRow);
+
+  const commitContent = useCallback(() => {
+    if (committedRef.current || !ref.current) return;
+    committedRef.current = true;
+
+    const html = ref.current.innerHTML;
+    const text = ref.current.innerText;
+    const hasFormatting = ref.current.querySelector('b, i, u, strong, em, ol, ul, li, a, br');
+
+    if (hasFormatting || (html && html !== text && html !== '<br>' && html !== '')) {
+      updateCellContent(rowIndex, colIndex, { text, html, type: 'text' });
+    } else {
+      updateCellContent(rowIndex, colIndex, { text: text || '', type: 'text' });
     }
-  }, []);
+  }, [rowIndex, colIndex, updateCellContent]);
 
-  const handleBlur = () => {
-    if (ref.current) {
-      const html = ref.current.innerHTML;
-      const text = ref.current.innerText;
-      const hasFormatting = html !== text && html !== `<br>` && html !== '';
-
-      if (hasFormatting) {
-        store.updateCellContent(rowIndex, colIndex, { text, html, type: 'text' });
-      } else {
-        store.updateCellContent(rowIndex, colIndex, { text, type: 'text' });
-      }
-    }
-    // Small delay to allow click events on type menu
+  const handleBlur = useCallback(() => {
+    commitContent();
+    // Delay to allow click events on other cells
     setTimeout(() => {
-      store.setEditingCell(null);
-    }, 150);
-  };
+      setEditingCell(null);
+    }, 100);
+  }, [commitContent, setEditingCell]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      store.setEditingCell(null);
+      e.preventDefault();
+      e.stopPropagation();
+      committedRef.current = true; // Don't save on escape
+      setEditingCell(null);
+      return;
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleBlur();
+      e.stopPropagation();
+      commitContent();
+      setEditingCell(null);
+      return;
     }
-    // Stop propagation for shortcuts that shouldn't reach the global handler
     if (e.key === 'Tab') {
       e.preventDefault();
-      handleBlur();
-      // Move to next/prev cell
-      const table = store.getActiveTable();
+      e.stopPropagation();
+      commitContent();
+      const table = getActiveTable();
       if (table) {
         let { row, col } = { row: rowIndex, col: colIndex };
         if (e.shiftKey) {
@@ -69,38 +71,60 @@ export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
           col++;
           if (col >= table.columns.length) { col = 0; row = Math.min(table.rows.length - 1, row + 1); }
         }
-        store.setActiveCell({ row, col });
-        store.setEditingCell({ row, col });
+        setActiveCell({ row, col });
+        setEditingCell({ row, col });
       }
+      return;
     }
+    // Stop propagation for all other keys to prevent global keyboard handler interference
     e.stopPropagation();
-  };
+  }, [commitContent, setEditingCell, getActiveTable, setActiveCell, rowIndex, colIndex]);
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    // Allow rich text paste
-    const html = e.clipboardData.getData('text/html');
-    if (html) {
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    // Prefer plain text paste to avoid messy HTML
+    const text = e.clipboardData.getData('text/plain');
+    if (text) {
       e.preventDefault();
-      document.execCommand('insertHTML', false, html);
+      document.execCommand('insertText', false, text);
     }
-  };
+  }, []);
 
-  const handleInput = () => {
-    // Auto-grow height if needed
+  const handleInput = useCallback(() => {
     if (ref.current) {
-      const table = store.getActiveTable();
+      const table = getActiveTable();
       if (table) {
         const row = table.rows[rowIndex];
         const contentHeight = ref.current.scrollHeight;
-        if (contentHeight > row.height) {
-          store.resizeRow(rowIndex, contentHeight + 8);
+        if (contentHeight > row.height + 4) {
+          resizeRow(rowIndex, contentHeight + 8);
         }
       }
     }
-  };
+  }, [getActiveTable, rowIndex, resizeRow]);
 
-  const cellContent = cell?.content;
-  const isRichText = cellContent?.type === 'text' && cellContent?.html;
+  useEffect(() => {
+    committedRef.current = false;
+    // Use requestAnimationFrame to ensure the DOM is ready
+    requestAnimationFrame(() => {
+      if (ref.current) {
+        ref.current.focus();
+        // Place cursor at the end of content
+        const range = document.createRange();
+        const sel = window.getSelection();
+        if (ref.current.childNodes.length > 0) {
+          range.selectNodeContents(ref.current);
+          range.collapse(false); // collapse to end
+        } else {
+          range.setStart(ref.current, 0);
+          range.collapse(true);
+        }
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    });
+  }, []);
+
+  const initialContent = cell?.content.html || cell?.content.text || '';
 
   return (
     <div className="relative w-full h-full">
@@ -109,20 +133,20 @@ export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
         contentEditable
         suppressContentEditableWarning
         className="w-full h-full px-2 py-1 outline-none text-sm overflow-hidden min-h-[24px]"
-        style={{
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap',
-        }}
+        style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
         data-placeholder="Type here..."
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onInput={handleInput}
-        dangerouslySetInnerHTML={{ __html: cellContent?.html || cellContent?.text || '' }}
+        dangerouslySetInnerHTML={{ __html: initialContent }}
       />
 
       {/* Floating format mini-bar */}
-      <div className="absolute -top-8 left-0 flex items-center gap-0.5 bg-[var(--surface-0)] border border-[var(--border)] rounded-md shadow-float px-1 py-0.5 z-50">
+      <div
+        className="absolute -top-8 left-0 flex items-center gap-0.5 bg-[var(--surface-0)] border border-[var(--border)] rounded-md shadow-float px-1 py-0.5 z-50"
+        onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking toolbar
+      >
         <button
           className="toolbar-btn !w-6 !h-6 !text-xs"
           onMouseDown={(e) => { e.preventDefault(); document.execCommand('bold'); }}
@@ -143,21 +167,6 @@ export function CellEditor({ rowIndex, colIndex, cell }: CellEditorProps) {
           title="Underline"
         >
           <u>U</u>
-        </button>
-        <div className="w-px h-4 bg-[var(--border)] mx-0.5" />
-        <button
-          className="toolbar-btn !w-6 !h-6 !text-xs"
-          onMouseDown={(e) => { e.preventDefault(); document.execCommand('insertUnorderedList'); }}
-          title="Bullet list"
-        >
-          •≡
-        </button>
-        <button
-          className="toolbar-btn !w-6 !h-6 !text-xs"
-          onMouseDown={(e) => { e.preventDefault(); document.execCommand('insertOrderedList'); }}
-          title="Numbered list"
-        >
-          1.
         </button>
       </div>
     </div>

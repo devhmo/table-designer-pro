@@ -12,6 +12,7 @@ import {
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, downloadFile } from '../utils/export';
+import { importFromFile } from '../utils/import';
 import type { TableData } from '../types';
 
 function ToolbarButton({ icon: Icon, label, active, disabled, onClick, className = '' }: {
@@ -93,24 +94,7 @@ export function Toolbar() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       try {
-        let imported: TableData;
-        if (file.name.endsWith('.csv')) {
-          const { importCSV } = await import('../utils/import');
-          imported = await importCSV(file);
-        } else if (file.name.match(/\.xlsx?$/)) {
-          const { importExcel } = await import('../utils/import');
-          imported = await importExcel(file);
-        } else if (file.name.endsWith('.json')) {
-          const { importJSON } = await import('../utils/import');
-          imported = await importJSON(file);
-        } else if (file.name.endsWith('.md')) {
-          const { importMarkdown } = await import('../utils/import');
-          const text = await file.text();
-          imported = importMarkdown(text, file.name.replace(/\.md$/, ''));
-        } else {
-          alert('Unsupported file format');
-          return;
-        }
+        const imported = await importFromFile(file);
         store.importTable(imported);
       } catch (err: any) {
         alert('Import failed: ' + err.message);

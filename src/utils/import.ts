@@ -1,24 +1,6 @@
 import { nanoid } from 'nanoid';
 import type { TableData, Cell, ColumnDef, RowDef } from '../types';
-
-const DEFAULT_THEME = {
-  id: 'default',
-  name: 'Default',
-  headerBg: '#1e293b',
-  headerText: '#ffffff',
-  cellBg: '#ffffff',
-  cellText: '#1e293b',
-  borderColor: '#e2e8f0',
-  borderWidth: 1,
-  borderStyle: 'solid' as const,
-  alternateRowBg: '#f8fafc',
-  fontFamily: 'Inter',
-  fontSize: 14,
-  headerFontWeight: '600',
-  borderRadius: 8,
-  stickyHeader: true,
-  stickyFirstCol: false,
-};
+import { DEFAULT_THEME } from '../types';
 
 function makeCell(text: string): Cell {
   return {
@@ -107,11 +89,9 @@ export async function importExcel(file: File): Promise<TableData> {
 export async function importJSON(file: File): Promise<TableData> {
   const text = await file.text();
   const parsed = JSON.parse(text);
-  // If it's already a full TableData object
   if (parsed.columns && parsed.rows && parsed.cells) {
     return { ...parsed, id: nanoid(10), createdAt: Date.now(), updatedAt: Date.now() };
   }
-  // If it's an array of objects
   if (Array.isArray(parsed) && parsed.length > 0) {
     const keys = Object.keys(parsed[0]);
     const dataRows = parsed.map(item => keys.map(k => String(item[k] || '')));
@@ -132,4 +112,19 @@ export function importMarkdown(text: string, name: string): TableData {
     dataRows.push(parseRow(lines[i]));
   }
   return buildTable(headers, dataRows, name);
+}
+
+export async function importFromFile(file: File): Promise<TableData> {
+  if (file.name.endsWith('.csv')) {
+    return importCSV(file);
+  } else if (file.name.match(/\.xlsx?$/)) {
+    return importExcel(file);
+  } else if (file.name.endsWith('.json')) {
+    return importJSON(file);
+  } else if (file.name.endsWith('.md')) {
+    const text = await file.text();
+    return importMarkdown(text, file.name.replace(/\.md$/, ''));
+  } else {
+    throw new Error('Unsupported file format. Supported: CSV, Excel, JSON, Markdown');
+  }
 }

@@ -475,9 +475,23 @@ export function StylePanel() {
                   min={1}
                   max={20}
                   onChange={(e) => {
-                    if (activeCell && cell) {
-                      store.updateCellStyle(activeCell.row, activeCell.col, {});
-                      // Update colspan through store
+                    if (activeCell) {
+                      store.updateCellColspan(activeCell.row, activeCell.col, Number(e.target.value));
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">Rowspan</label>
+                <input
+                  type="number"
+                  className="input-field !py-1 text-xs w-16"
+                  value={cell?.rowspan || 1}
+                  min={1}
+                  max={20}
+                  onChange={(e) => {
+                    if (activeCell) {
+                      store.updateCellRowspan(activeCell.row, activeCell.col, Number(e.target.value));
                     }
                   }}
                 />

@@ -12,7 +12,10 @@ export function TableCanvas() {
   const [resizingCol, setResizingCol] = useState<{ index: number; startX: number; startWidth: number } | null>(null);
   const [resizingRow, setResizingRow] = useState<{ index: number; startY: number; startHeight: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: number; col: number } | null>(null);
-  const [selecting, setSelecting] = useState(false);
+
+  // Selection drag state — independent of store's activeCell
+  const [selectStart, setSelectStart] = useState<{ row: number; col: number } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
 
   // Drag & drop state
   const [dragType, setDragType] = useState<'row' | 'col' | null>(null);
@@ -51,8 +54,8 @@ export function TableCanvas() {
       }
     };
     const handleMouseUp = () => {
-      if (resizingCol) { store.pushHistory('Resize column'); setResizingCol(null); }
-      if (resizingRow) { store.pushHistory('Resize row'); setResizingRow(null); }
+      if (resizingCol) { setResizingCol(null); }
+      if (resizingRow) { setResizingRow(null); }
     };
     if (resizingCol || resizingRow) {
       window.addEventListener('mousemove', handleMouseMove);
@@ -62,7 +65,7 @@ export function TableCanvas() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [resizingCol, resizingRow]);
+  }, [resizingCol, resizingRow, store]);
 
   // ── Column Rename ──
   useEffect(() => {
@@ -83,7 +86,6 @@ export function TableCanvas() {
     setDragFrom(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', `${type}:${index}`);
-    // Use a transparent drag image
     const ghost = document.createElement('div');
     ghost.style.opacity = '0';
     document.body.appendChild(ghost);
@@ -116,54 +118,63 @@ export function TableCanvas() {
     setDragOver(null);
   };
 
-  // ── Cell Interactions ──
-  const handleCellMouseDown = (rowIdx: number, colIdx: number, e: React.MouseEvent) => {
-    if (e.button === 2) return;
+  // ── Cell Interactions (Fixed Selection) ──
+  const handleCellMouseDown = useCallback((rowIdx: number, colIdx: number, e: React.MouseEvent) => {
+    if (e.button === 2) return; // right-click handled by context menu
     e.stopPropagation();
     store.setEditingColumnHeader(null);
+    setContextMenu(null);
 
     if (e.shiftKey && store.activeCell) {
+      // Extend selection from active cell
       store.setSelection({
         startRow: store.activeCell.row, startCol: store.activeCell.col,
         endRow: rowIdx, endCol: colIdx,
       });
     } else {
+      // Start new selection
       store.setActiveCell({ row: rowIdx, col: colIdx });
       store.setSelection(null);
       store.setEditingCell(null);
-      setSelecting(true);
+      // Track selection start for drag-to-select
+      setSelectStart({ row: rowIdx, col: colIdx });
+      setIsSelecting(true);
     }
-  };
+  }, [store]);
 
-  const handleCellMouseEnter = (rowIdx: number, colIdx: number) => {
-    if (selecting && store.activeCell) {
+  const handleCellMouseEnter = useCallback((rowIdx: number, colIdx: number) => {
+    if (isSelecting && selectStart) {
+      // Update selection while dragging
       store.setSelection({
-        startRow: store.activeCell.row, startCol: store.activeCell.col,
+        startRow: selectStart.row, startCol: selectStart.col,
         endRow: rowIdx, endCol: colIdx,
       });
     }
-  };
+  }, [isSelecting, selectStart, store]);
 
   useEffect(() => {
-    const handleMouseUp = () => setSelecting(false);
+    const handleMouseUp = () => {
+      setIsSelecting(false);
+      setSelectStart(null);
+    };
     window.addEventListener('mouseup', handleMouseUp);
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
-  const handleCellDoubleClick = (rowIdx: number, colIdx: number) => {
+  const handleCellDoubleClick = useCallback((rowIdx: number, colIdx: number) => {
     const cell = table.cells[`${table.rows[rowIdx].id}:${table.columns[colIdx].id}`];
     if (cell?.locked) return;
     store.setEditingCell({ row: rowIdx, col: colIdx });
-  };
+  }, [table, store]);
 
-  const handleContextMenu = (e: React.MouseEvent, rowIdx: number, colIdx: number) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, rowIdx: number, colIdx: number) => {
     e.preventDefault();
     e.stopPropagation();
     store.setActiveCell({ row: rowIdx, col: colIdx });
     setContextMenu({ x: e.clientX, y: e.clientY, row: rowIdx, col: colIdx });
-  };
+  }, [store]);
 
-  const isSelected = (rowIdx: number, colIdx: number) => {
+  const isSelected = useCallback((rowIdx: number, colIdx: number) => {
     const sel = store.selection;
     if (!sel) return false;
     const r1 = Math.min(sel.startRow, sel.endRow);
@@ -171,17 +182,27 @@ export function TableCanvas() {
     const c1 = Math.min(sel.startCol, sel.endCol);
     const c2 = Math.max(sel.startCol, sel.endCol);
     return rowIdx >= r1 && rowIdx <= r2 && colIdx >= c1 && colIdx <= c2;
-  };
+  }, [store.selection]);
 
-  const isActive = (rowIdx: number, colIdx: number) => {
+  const isActive = useCallback((rowIdx: number, colIdx: number) => {
     return store.activeCell?.row === rowIdx && store.activeCell?.col === colIdx;
-  };
+  }, [store.activeCell]);
 
-  // ── Style Helpers ──
-  const getCellStyle = (cell: any): React.CSSProperties => {
+  // ── Style Helpers (Fixed gradient/bgColor ordering) ──
+  const getCellStyle = useCallback((cell: any): React.CSSProperties => {
     if (!cell) return {};
     const s = cell.style;
     const style: React.CSSProperties = {};
+
+    // Apply gradient FIRST as background base (if any)
+    if (s.gradient) {
+      style.background = s.gradient;
+    }
+    // bgColor only if no gradient
+    if (s.bgColor && !s.gradient) {
+      style.backgroundColor = s.bgColor;
+    }
+
     if (s.fontFamily) style.fontFamily = s.fontFamily;
     if (s.fontSize) style.fontSize = s.fontSize;
     if (s.fontWeight) style.fontWeight = s.fontWeight;
@@ -190,7 +211,6 @@ export function TableCanvas() {
     else if (s.underline) style.textDecoration = 'underline';
     else if (s.strikethrough) style.textDecoration = 'line-through';
     if (s.textColor) style.color = s.textColor;
-    if (s.bgColor) style.backgroundColor = s.bgColor;
     if (s.textAlign) style.textAlign = s.textAlign;
     if (s.verticalAlign) style.verticalAlign = s.verticalAlign;
     if (s.padding) style.padding = s.padding;
@@ -200,16 +220,16 @@ export function TableCanvas() {
     if (s.textTransform) style.textTransform = s.textTransform;
     if (s.borderRadius) style.borderRadius = s.borderRadius;
     if (s.boxShadow) style.boxShadow = s.boxShadow;
-    if (s.gradient) style.background = s.gradient;
+
     const bs = (side: any) => side ? `${side.width}px ${side.style} ${side.color}` : undefined;
     if (s.borderTop) style.borderTop = bs(s.borderTop);
     if (s.borderBottom) style.borderBottom = bs(s.borderBottom);
     if (s.borderLeft) style.borderLeft = bs(s.borderLeft);
     if (s.borderRight) style.borderRight = bs(s.borderRight);
     return style;
-  };
+  }, []);
 
-  const renderCellContent = (cell: any) => {
+  const renderCellContent = useCallback((cell: any) => {
     if (!cell) return null;
     const { content } = cell;
     switch (content.type) {
@@ -261,10 +281,10 @@ export function TableCanvas() {
       default:
         return <span>{content.text}</span>;
     }
-  };
+  }, []);
 
   // ── Context Menu ──
-  const handleContextAction = (action: string) => {
+  const handleContextAction = useCallback((action: string) => {
     if (!contextMenu) return;
     const { row, col } = contextMenu;
     switch (action) {
@@ -283,17 +303,31 @@ export function TableCanvas() {
       case 'pasteStyle': store.pasteStyle(); break;
     }
     setContextMenu(null);
-  };
+  }, [contextMenu, store]);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [contextMenu]);
 
   return (
     <div
       ref={canvasRef}
       className="table-canvas bg-[var(--surface-1)]"
-      onClick={() => { setContextMenu(null); store.setEditingColumnHeader(null); }}
+      onClick={(e) => {
+        // Only clear if clicking the canvas background itself
+        if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('table-canvas')) {
+          setContextMenu(null);
+          store.setEditingColumnHeader(null);
+        }
+      }}
     >
       <div
         className="inline-block min-w-full p-4"
-        style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+        style={{ zoom: `${scale}` }}
       >
         <div className="inline-block rounded-lg overflow-hidden shadow-sm border border-[var(--border)]"
           style={{ borderRadius: theme.borderRadius }}
@@ -456,7 +490,10 @@ export function TableCanvas() {
       {contextMenu && (
         <div
           className="fixed z-50 bg-[var(--surface-0)] border border-[var(--border)] rounded-lg shadow-float p-1 min-w-[180px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 200),
+            top: Math.min(contextMenu.y, window.innerHeight - 300),
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <button className="context-menu-item w-full" onClick={() => handleContextAction('insertRowAbove')}>Insert Row Above</button>
