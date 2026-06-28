@@ -102,6 +102,12 @@ export function Toolbar() {
     setShowImport(false);
   };
 
+  const handlePDFExport = async (settings: PDFExportSettings) => {
+    if (!table) return;
+    setShowPDFSettings(false);
+    await tableToPDF(table, settings);
+  };
+
   const applyStyleToSelection = (style: any) => {
     const sel = store.selection;
     if (sel) {
@@ -426,6 +432,15 @@ export function Toolbar() {
           )}
         </div>
       </div>
+
+      {/* PDF Export Settings Dialog */}
+      {showPDFSettings && table && (
+        <PDFSettingsDialog
+          tableName={table.name}
+          onExport={handlePDFExport}
+          onClose={() => setShowPDFSettings(false)}
+        />
+      )}
     </div>
   );
 }

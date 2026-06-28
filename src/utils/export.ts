@@ -1,4 +1,5 @@
 import type { TableData } from '../types';
+import type { PDFExportSettings } from '../components/PDFSettingsDialog';
 
 // ── Helper ──
 function escapeHtml(text: string): string {
@@ -62,44 +63,68 @@ function cssColorToRGB(color: string): [number, number, number] {
 }
 
 // ── PDF Export (Vector) ──
-export async function tableToPDF(table: TableData): Promise<void> {
+export async function tableToPDF(table: TableData, settings?: PDFExportSettings): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
+
+  // Default settings
+  const opts = settings || {
+    paperSize: 'a4' as const,
+    orientation: 'auto' as const,
+    showPageNumbers: true,
+    showTitle: true,
+    showMetadata: true,
+    fitToPage: 'width' as const,
+    marginSize: 'normal' as const,
+  };
 
   const { theme, columns, rows, cells } = table;
   const visibleCols = columns.filter(c => !c.hidden);
   const visibleRows = rows.filter(r => !r.hidden);
 
-  // Calculate total width to determine orientation
+  // Determine orientation
   const totalWidth = visibleCols.reduce((s, c) => s + c.width, 0);
-  const orientation = totalWidth > 1000 ? 'landscape' as const : 'portrait' as const;
+  let orientation: 'portrait' | 'landscape' = 'portrait';
+  if (opts.orientation === 'auto') {
+    orientation = totalWidth > 1000 ? 'landscape' : 'portrait';
+  } else {
+    orientation = opts.orientation;
+  }
 
-  const doc = new jsPDF({
-    orientation,
-    unit: 'mm',
-    format: 'a4',
-  });
+  // Paper size mapping
+  const paperSizes: Record<string, string | [number, number]> = {
+    a4: 'a4', letter: 'letter', legal: 'legal', a3: 'a3',
+  };
+  const format = paperSizes[opts.paperSize] || 'a4';
+
+  // Margin mapping
+  const marginMap = { narrow: 10, normal: 14, wide: 20 };
+  const margin = marginMap[opts.marginSize];
+
+  const doc = new jsPDF({ orientation, unit: 'mm', format });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
   // Title
-  doc.setFontSize(18);
-  doc.setTextColor(30, 41, 59);
-  doc.text(table.name, 14, 15);
+  let yOffset = margin;
+  if (opts.showTitle) {
+    doc.setFontSize(18);
+    doc.setTextColor(30, 41, 59);
+    doc.text(table.name, margin, yOffset);
+    yOffset += 6;
+  }
 
-  // Subtitle
-  doc.setFontSize(9);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Generated on ${new Date().toLocaleDateString()} • ${visibleRows.length} rows × ${visibleCols.length} columns`, 14, 21);
+  // Metadata
+  if (opts.showMetadata) {
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Generated on ${new Date().toLocaleDateString()} • ${visibleRows.length} rows × ${visibleCols.length} columns`, margin, yOffset);
+    yOffset += 6;
+  }
 
-  // Prepare head
+  // Prepare head & body
   const head = [visibleCols.map(col => col.name)];
-
-  // Prepare body
-  const body = visibleRows.map(row => {
-    return visibleCols.map(col => {
-      const cell = cells[`${row.id}:${col.id}`];
-      return getCellPlainText(cell);
-    });
-  });
+  const body = visibleRows.map(row => visibleCols.map(col => getCellPlainText(table.cells[`${row.id}:${col.id}`])));
 
   // Theme colors
   const headerBg = cssColorToRGB(theme.headerBg);
@@ -109,171 +134,109 @@ export async function tableToPDF(table: TableData): Promise<void> {
   const borderColor = cssColorToRGB(theme.borderColor);
   const altRowBg = cssColorToRGB(theme.alternateRowBg || theme.cellBg);
 
-  // Column styles (proportional widths)
-  const pageWidth = doc.internal.pageSize.getWidth() - 28;
-  const scaleFactor = pageWidth / (totalWidth / 96 * 25.4);
+  // Column widths
+  const usableWidth = pageWidth - margin * 2;
+  let scaleFactor: number;
+  if (opts.fitToPage === 'width' || opts.fitToPage === 'page') {
+    scaleFactor = usableWidth / (totalWidth / 96 * 25.4);
+  } else {
+    scaleFactor = 1;
+  }
 
   const columnStyles: Record<number, any> = {};
   visibleCols.forEach((col, i) => {
     const widthMm = (col.width / 96 * 25.4) * scaleFactor;
-    columnStyles[i] = {
-      cellWidth: Math.max(widthMm, 10),
-      minCellWidth: 10,
-    };
+    columnStyles[i] = { cellWidth: Math.max(widthMm, 10), minCellWidth: 10 };
   });
 
-  // Build a map of cell-specific styles for didParseCell
-  const cellStyleMap: Record<string, {
-    fillColor?: [number, number, number];
-    textColor?: [number, number, number];
-    fontStyle?: string;
-    halign?: string;
-    fontSize?: number;
-  }> = {};
-
+  // Build cell style map
+  const cellStyleMap: Record<string, any> = {};
   visibleRows.forEach((row, ri) => {
     visibleCols.forEach((col, ci) => {
       const cell = cells[`${row.id}:${col.id}`];
       if (!cell) return;
       const s = cell.style;
       const entry: any = {};
-
-      // Cell background color (priority: bgColor > gradient base > theme alternate)
-      if (s.bgColor) {
-        entry.fillColor = cssColorToRGB(s.bgColor);
-      } else if (s.gradient) {
-        // Extract first color from gradient as approximation
-        const gradientMatch = s.gradient.match(/#[0-9a-fA-F]{3,6}/g);
-        if (gradientMatch && gradientMatch.length > 0) {
-          entry.fillColor = cssColorToRGB(gradientMatch[0]);
-        }
-      }
-
-      // Cell text color
-      if (s.textColor) {
-        entry.textColor = cssColorToRGB(s.textColor);
-      }
-
-      // Font style
-      if (s.fontWeight === 'bold' || (s.fontWeight && parseInt(s.fontWeight) >= 700)) {
-        entry.fontStyle = 'bold';
-      }
-      if (s.italic) {
-        entry.fontStyle = entry.fontStyle === 'bold' ? 'bolditalic' : 'italic';
-      }
-
-      // Alignment
-      if (s.textAlign) {
-        entry.halign = s.textAlign;
-      }
-
-      // Font size
-      if (s.fontSize) {
-        entry.fontSize = Math.max(6, Math.min(12, s.fontSize * 0.8));
-      }
-
-      if (Object.keys(entry).length > 0) {
-        cellStyleMap[`${ri}:${ci}`] = entry;
-      }
+      if (s.bgColor) entry.fillColor = cssColorToRGB(s.bgColor);
+      else if (s.gradient) { const m = s.gradient.match(/#[0-9a-fA-F]{3,6}/g); if (m?.length) entry.fillColor = cssColorToRGB(m[0]); }
+      if (s.textColor) entry.textColor = cssColorToRGB(s.textColor);
+      if (s.fontWeight === 'bold' || (s.fontWeight && parseInt(s.fontWeight) >= 700)) entry.fontStyle = 'bold';
+      if (s.italic) entry.fontStyle = entry.fontStyle === 'bold' ? 'bolditalic' : 'italic';
+      if (s.textAlign) entry.halign = s.textAlign;
+      if (s.fontSize) entry.fontSize = Math.max(6, Math.min(12, s.fontSize * 0.8));
+      if (Object.keys(entry).length > 0) cellStyleMap[`${ri}:${ci}`] = entry;
     });
   });
 
+  // Calculate table width for fit-to-page
+  let tableWidth = usableWidth;
+  if (opts.fitToPage === 'none') {
+    tableWidth = totalWidth / 96 * 25.4 * scaleFactor;
+  }
+
   autoTable(doc, {
-    head,
-    body,
-    startY: 26,
+    head, body,
+    startY: yOffset + 2,
     theme: 'grid',
+    tableWidth,
     styles: {
       font: 'helvetica',
       fontSize: Math.max(7, Math.min(10, theme.fontSize * 0.8)),
-      cellPadding: 3,
+      cellPadding: opts.fitToPage === 'page' ? 2 : 3,
       textColor: cellText,
       fillColor: cellBg,
       lineColor: borderColor,
       lineWidth: Math.max(0.1, theme.borderWidth * 0.2),
       halign: 'left',
       valign: 'middle',
-      overflow: 'ellipsize',
-      minCellHeight: 8,
+      overflow: opts.fitToPage === 'page' ? 'hidden' : 'ellipsize',
+      minCellHeight: opts.fitToPage === 'page' ? 6 : 8,
     },
     headStyles: {
       fillColor: headerBg,
       textColor: headerText,
       fontStyle: 'bold',
       fontSize: Math.max(7, Math.min(10, theme.fontSize * 0.8)),
-      cellPadding: 4,
-      halign: 'left',
-      valign: 'middle',
+      cellPadding: opts.fitToPage === 'page' ? 2 : 4,
+      halign: 'left', valign: 'middle',
       lineWidth: Math.max(0.1, theme.borderWidth * 0.2),
       lineColor: borderColor,
     },
-    alternateRowStyles: {
-      fillColor: altRowBg,
-    },
+    alternateRowStyles: { fillColor: altRowBg },
     columnStyles,
-    margin: { left: 14, right: 14 },
+    margin: { left: margin, right: margin, top: margin, bottom: margin },
     didParseCell: (data) => {
-      // Apply cell-specific styles
       if (data.section === 'body') {
         const key = `${data.row.index}:${data.column.index}`;
-        const cellStyles = cellStyleMap[key];
-        if (cellStyles) {
-          if (cellStyles.fillColor) data.cell.styles.fillColor = cellStyles.fillColor;
-          if (cellStyles.textColor) data.cell.styles.textColor = cellStyles.textColor;
-          if (cellStyles.fontStyle) data.cell.styles.fontStyle = cellStyles.fontStyle;
-          if (cellStyles.halign) data.cell.styles.halign = cellStyles.halign;
-          if (cellStyles.fontSize) data.cell.styles.fontSize = cellStyles.fontSize;
+        const cs = cellStyleMap[key];
+        if (cs) {
+          if (cs.fillColor) data.cell.styles.fillColor = cs.fillColor;
+          if (cs.textColor) data.cell.styles.textColor = cs.textColor;
+          if (cs.fontStyle) data.cell.styles.fontStyle = cs.fontStyle;
+          if (cs.halign) data.cell.styles.halign = cs.halign;
+          if (cs.fontSize) data.cell.styles.fontSize = cs.fontSize;
         }
-
-        // Handle special content types
         const row = visibleRows[data.row.index];
         const col = visibleCols[data.column.index];
         if (row && col) {
           const cell = cells[`${row.id}:${col.id}`];
-          if (cell?.content.type === 'checkbox') {
-            data.cell.text = [cell.content.checked ? '☑ Yes' : '☐ No'];
-          }
-          if (cell?.content.type === 'progress') {
-            const val = cell.content.value || 0;
-            data.cell.text = [`${val}%`];
-          }
-          if (cell?.content.type === 'rating') {
-            const stars = cell.content.value || 0;
-            data.cell.text = ['★'.repeat(stars) + '☆'.repeat(5 - stars)];
-          }
-          if (cell?.content.type === 'badge' || cell?.content.type === 'tag') {
-            const label = cell.content.label || cell.content.text || '';
-            data.cell.text = [label];
-            // Apply badge/tag color as text color
-            if (cell.content.color) {
-              data.cell.styles.textColor = cssColorToRGB(cell.content.color);
-            }
-          }
-          if (cell?.content.type === 'link') {
-            data.cell.text = [cell.content.text || cell.content.href || ''];
-            data.cell.styles.textColor = [59, 130, 246]; // blue-500
-          }
+          if (cell?.content.type === 'checkbox') data.cell.text = [cell.content.checked ? '☑ Yes' : '☐ No'];
+          if (cell?.content.type === 'progress') data.cell.text = [`${cell.content.value || 0}%`];
+          if (cell?.content.type === 'rating') data.cell.text = ['★'.repeat(cell.content.value || 0) + '☆'.repeat(5 - (cell.content.value || 0))];
+          if (cell?.content.type === 'badge' || cell?.content.type === 'tag') { data.cell.text = [cell.content.label || cell.content.text || '']; if (cell.content.color) data.cell.styles.textColor = cssColorToRGB(cell.content.color); }
+          if (cell?.content.type === 'link') { data.cell.text = [cell.content.text || cell.content.href || '']; data.cell.styles.textColor = [59, 130, 246]; }
         }
       }
     },
-    didDrawPage: (data) => {
-      // Footer with page numbers
-      const pageCount = doc.getNumberOfPages();
-      const pageHeight = doc.internal.pageSize.getHeight();
+    didDrawPage: opts.showPageNumbers ? (data) => {
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text(
-        `${table.name} — Page ${data.pageNumber} of ${pageCount}`,
-        doc.internal.pageSize.getWidth() / 2,
-        pageHeight - 8,
-        { align: 'center' }
-      );
-    },
+      doc.text(`${table.name} — Page ${data.pageNumber} of ${doc.getNumberOfPages()}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+    } : undefined,
   });
 
   doc.save(`${table.name}.pdf`);
 }
-
 // ── CSV Export ──
 export function tableToCSV(table: TableData): string {
   const visibleCols = table.columns.filter(c => !c.hidden);
