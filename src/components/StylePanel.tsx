@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTableStore } from '../store/tableStore';
 import { THEME_PRESETS } from '../utils/themes';
+import { BorderPanel } from './BorderPanel';
 import {
   Palette, Type, Layout, Grid3X3, Image, Settings, ChevronDown, ChevronRight,
   Paintbrush, Box, Eye, EyeOff, Snowflake, Lock, Unlock, Link, Hash, Star
@@ -224,6 +225,29 @@ export function StylePanel() {
                 </>
               )}
 
+              {cellContent?.type === 'checkbox' && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">Checked</label>
+                    <button
+                      className={`toolbar-btn !w-8 !h-8 ${cellContent.checked ? 'active' : ''}`}
+                      onClick={() => updateContent({ checked: !cellContent.checked })}
+                    >
+                      {cellContent.checked ? '☑' : '☐'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">Label</label>
+                    <input
+                      className="input-field !py-1 text-xs flex-1"
+                      value={cellContent.text || ''}
+                      onChange={(e) => updateContent({ text: e.target.value })}
+                      placeholder="Checkbox label..."
+                    />
+                  </div>
+                </>
+              )}
+
               {cellContent?.type === 'image' && (
                 <>
                   <div className="flex items-center gap-2">
@@ -362,58 +386,7 @@ export function StylePanel() {
 
             {/* Borders */}
             <Section title="Borders" icon={Box} defaultOpen={false}>
-              {(['Top', 'Bottom', 'Left', 'Right'] as const).map((side) => {
-                const key = `border${side}` as keyof CellStyle;
-                const border = cellStyle[key] as any;
-                return (
-                  <div key={side} className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">{side}</label>
-                      <select
-                        className="select-field !py-0.5 text-xs flex-1"
-                        value={border?.style || 'none'}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateStyle({
-                            [key]: val === 'none' ? undefined : {
-                              width: border?.width || 1,
-                              style: val,
-                              color: border?.color || '#e2e8f0',
-                            }
-                          } as any);
-                        }}
-                      >
-                        <option value="none">None</option>
-                        <option value="solid">Solid</option>
-                        <option value="dashed">Dashed</option>
-                        <option value="dotted">Dotted</option>
-                        <option value="double">Double</option>
-                      </select>
-                      {border?.style && border.style !== 'none' && (
-                        <>
-                          <input
-                            type="number"
-                            className="input-field !py-0.5 text-xs w-12"
-                            value={border.width || 1}
-                            min={1}
-                            max={10}
-                            onChange={(e) => updateStyle({ [key]: { ...border, width: Number(e.target.value) } } as any)}
-                          />
-                          <div className="relative">
-                            <div className="w-5 h-5 rounded border border-[var(--border)] cursor-pointer" style={{ backgroundColor: border.color }} />
-                            <input
-                              type="color"
-                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                              value={border.color || '#e2e8f0'}
-                              onChange={(e) => updateStyle({ [key]: { ...border, color: e.target.value } } as any)}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              <BorderPanel cellStyle={cellStyle} onUpdate={updateStyle} />
               <SliderInput label="Radius" value={cellStyle.borderRadius || 0} min={0} max={24} unit="px" onChange={(v) => updateStyle({ borderRadius: v })} />
               <SliderInput label="Padding" value={cellStyle.padding || 8} min={0} max={32} unit="px" onChange={(v) => updateStyle({ padding: v })} />
             </Section>

@@ -426,8 +426,16 @@ export function TableCanvas() {
         );
       case 'checkbox':
         return (
-          <input type="checkbox" checked={content.checked || false} readOnly className="w-4 h-4 rounded"
-            onClick={(e) => e.stopPropagation()} />
+          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={content.checked || false}
+              readOnly
+              className="w-4 h-4 rounded accent-blue-500"
+              style={{ accentColor: '#3b82f6' }}
+            />
+            {content.text && <span className="text-sm">{content.text}</span>}
+          </label>
         );
       case 'progress':
         return (
@@ -439,7 +447,7 @@ export function TableCanvas() {
       case 'rating':
         const stars = content.value || 0;
         return (
-          <span className="text-yellow-400">{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
+          <span className="text-yellow-400 text-sm tracking-wide">{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>
         );
       default:
         return <span>{content.text}</span>;
