@@ -82,12 +82,12 @@ export async function tableToPDF(table: TableData): Promise<void> {
 
   // Title
   doc.setFontSize(18);
-  doc.setTextColor(30, 41, 59); // slate-800
+  doc.setTextColor(30, 41, 59);
   doc.text(table.name, 14, 15);
 
   // Subtitle
   doc.setFontSize(9);
-  doc.setTextColor(148, 163, 184); // slate-400
+  doc.setTextColor(148, 163, 184);
   doc.text(`Generated on ${new Date().toLocaleDateString()} • ${visibleRows.length} rows × ${visibleCols.length} columns`, 14, 21);
 
   // Prepare head
@@ -110,8 +110,8 @@ export async function tableToPDF(table: TableData): Promise<void> {
   const altRowBg = cssColorToRGB(theme.alternateRowBg || theme.cellBg);
 
   // Column styles (proportional widths)
-  const pageWidth = doc.internal.pageSize.getWidth() - 28; // margins
-  const scaleFactor = pageWidth / (totalWidth / 96 * 25.4); // convert px to mm
+  const pageWidth = doc.internal.pageSize.getWidth() - 28;
+  const scaleFactor = pageWidth / (totalWidth / 96 * 25.4);
 
   const columnStyles: Record<number, any> = {};
   visibleCols.forEach((col, i) => {
@@ -120,6 +120,62 @@ export async function tableToPDF(table: TableData): Promise<void> {
       cellWidth: Math.max(widthMm, 10),
       minCellWidth: 10,
     };
+  });
+
+  // Build a map of cell-specific styles for didParseCell
+  const cellStyleMap: Record<string, {
+    fillColor?: [number, number, number];
+    textColor?: [number, number, number];
+    fontStyle?: string;
+    halign?: string;
+    fontSize?: number;
+  }> = {};
+
+  visibleRows.forEach((row, ri) => {
+    visibleCols.forEach((col, ci) => {
+      const cell = cells[`${row.id}:${col.id}`];
+      if (!cell) return;
+      const s = cell.style;
+      const entry: any = {};
+
+      // Cell background color (priority: bgColor > gradient base > theme alternate)
+      if (s.bgColor) {
+        entry.fillColor = cssColorToRGB(s.bgColor);
+      } else if (s.gradient) {
+        // Extract first color from gradient as approximation
+        const gradientMatch = s.gradient.match(/#[0-9a-fA-F]{3,6}/g);
+        if (gradientMatch && gradientMatch.length > 0) {
+          entry.fillColor = cssColorToRGB(gradientMatch[0]);
+        }
+      }
+
+      // Cell text color
+      if (s.textColor) {
+        entry.textColor = cssColorToRGB(s.textColor);
+      }
+
+      // Font style
+      if (s.fontWeight === 'bold' || (s.fontWeight && parseInt(s.fontWeight) >= 700)) {
+        entry.fontStyle = 'bold';
+      }
+      if (s.italic) {
+        entry.fontStyle = entry.fontStyle === 'bold' ? 'bolditalic' : 'italic';
+      }
+
+      // Alignment
+      if (s.textAlign) {
+        entry.halign = s.textAlign;
+      }
+
+      // Font size
+      if (s.fontSize) {
+        entry.fontSize = Math.max(6, Math.min(12, s.fontSize * 0.8));
+      }
+
+      if (Object.keys(entry).length > 0) {
+        cellStyleMap[`${ri}:${ci}`] = entry;
+      }
+    });
   });
 
   autoTable(doc, {
@@ -134,7 +190,7 @@ export async function tableToPDF(table: TableData): Promise<void> {
       textColor: cellText,
       fillColor: cellBg,
       lineColor: borderColor,
-      lineWidth: theme.borderWidth * 0.25, // Convert px to mm roughly
+      lineWidth: Math.max(0.1, theme.borderWidth * 0.2),
       halign: 'left',
       valign: 'middle',
       overflow: 'ellipsize',
@@ -148,6 +204,8 @@ export async function tableToPDF(table: TableData): Promise<void> {
       cellPadding: 4,
       halign: 'left',
       valign: 'middle',
+      lineWidth: Math.max(0.1, theme.borderWidth * 0.2),
+      lineColor: borderColor,
     },
     alternateRowStyles: {
       fillColor: altRowBg,
@@ -155,34 +213,23 @@ export async function tableToPDF(table: TableData): Promise<void> {
     columnStyles,
     margin: { left: 14, right: 14 },
     didParseCell: (data) => {
-      // Apply cell-specific styles from the table data
+      // Apply cell-specific styles
       if (data.section === 'body') {
+        const key = `${data.row.index}:${data.column.index}`;
+        const cellStyles = cellStyleMap[key];
+        if (cellStyles) {
+          if (cellStyles.fillColor) data.cell.styles.fillColor = cellStyles.fillColor;
+          if (cellStyles.textColor) data.cell.styles.textColor = cellStyles.textColor;
+          if (cellStyles.fontStyle) data.cell.styles.fontStyle = cellStyles.fontStyle;
+          if (cellStyles.halign) data.cell.styles.halign = cellStyles.halign;
+          if (cellStyles.fontSize) data.cell.styles.fontSize = cellStyles.fontSize;
+        }
+
+        // Handle special content types
         const row = visibleRows[data.row.index];
         const col = visibleCols[data.column.index];
         if (row && col) {
           const cell = cells[`${row.id}:${col.id}`];
-          if (cell?.style) {
-            const s = cell.style;
-            if (s.textColor) {
-              data.cell.styles.textColor = cssColorToRGB(s.textColor);
-            }
-            if (s.bgColor) {
-              data.cell.styles.fillColor = cssColorToRGB(s.bgColor);
-            }
-            if (s.fontWeight === 'bold' || (s.fontWeight && parseInt(s.fontWeight) >= 700)) {
-              data.cell.styles.fontStyle = 'bold';
-            }
-            if (s.italic) {
-              data.cell.styles.fontStyle = data.cell.styles.fontStyle === 'bold' ? 'bolditalic' : 'italic';
-            }
-            if (s.textAlign) {
-              data.cell.styles.halign = s.textAlign;
-            }
-            if (s.fontSize) {
-              data.cell.styles.fontSize = Math.max(6, Math.min(12, s.fontSize * 0.8));
-            }
-          }
-          // Handle special content types
           if (cell?.content.type === 'checkbox') {
             data.cell.text = [cell.content.checked ? '☑ Yes' : '☐ No'];
           }
@@ -195,13 +242,22 @@ export async function tableToPDF(table: TableData): Promise<void> {
             data.cell.text = ['★'.repeat(stars) + '☆'.repeat(5 - stars)];
           }
           if (cell?.content.type === 'badge' || cell?.content.type === 'tag') {
-            data.cell.text = [cell.content.label || cell.content.text || ''];
+            const label = cell.content.label || cell.content.text || '';
+            data.cell.text = [label];
+            // Apply badge/tag color as text color
+            if (cell.content.color) {
+              data.cell.styles.textColor = cssColorToRGB(cell.content.color);
+            }
+          }
+          if (cell?.content.type === 'link') {
+            data.cell.text = [cell.content.text || cell.content.href || ''];
+            data.cell.styles.textColor = [59, 130, 246]; // blue-500
           }
         }
       }
     },
     didDrawPage: (data) => {
-      // Footer
+      // Footer with page numbers
       const pageCount = doc.getNumberOfPages();
       const pageHeight = doc.internal.pageSize.getHeight();
       doc.setFontSize(8);

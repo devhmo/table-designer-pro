@@ -16,7 +16,12 @@ const BORDER_PRESETS = [
         <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
       </svg>
     ),
-    style: {},
+    style: {
+      borderTop: undefined,
+      borderBottom: undefined,
+      borderLeft: undefined,
+      borderRight: undefined,
+    },
   },
   {
     id: 'all',
