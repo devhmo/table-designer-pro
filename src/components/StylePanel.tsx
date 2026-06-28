@@ -32,34 +32,7 @@ function Section({ title, icon: Icon, children, defaultOpen = true }: {
   );
 }
 
-function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="flex items-center gap-2">
-      <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">{label}</label>
-      <div className="relative flex-1">
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-6 h-6 rounded border border-[var(--border)] cursor-pointer shrink-0"
-            style={{ backgroundColor: value || 'transparent' }}
-          />
-          <input
-            type="color"
-            className="absolute left-0 top-0 w-6 h-6 opacity-0 cursor-pointer"
-            value={value || '#000000'}
-            onChange={(e) => onChange(e.target.value)}
-          />
-          <input
-            type="text"
-            className="input-field !py-1 text-xs font-mono flex-1"
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="#000000"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+
 
 function SliderInput({ label, value, min, max, step = 1, unit = '', onChange }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string;
@@ -210,7 +183,7 @@ export function StylePanel() {
                       onChange={(e) => updateContent({ label: e.target.value })}
                     />
                   </div>
-                  <ColorInput label="Color" value={cellContent.color || '#3b82f6'} onChange={(v) => updateContent({ color: v })} />
+                  <ColorPicker label="Color" value={cellContent.color || '#3b82f6'} onChange={(v) => updateContent({ color: v })} />
                 </>
               )}
 
@@ -224,7 +197,7 @@ export function StylePanel() {
                       onChange={(e) => updateContent({ label: e.target.value })}
                     />
                   </div>
-                  <ColorInput label="Color" value={cellContent.color || '#3b82f6'} onChange={(v) => updateContent({ color: v })} />
+                  <ColorPicker label="Color" value={cellContent.color || '#3b82f6'} onChange={(v) => updateContent({ color: v })} />
                 </>
               )}
 
@@ -289,7 +262,7 @@ export function StylePanel() {
               {cellContent?.type === 'progress' && (
                 <>
                   <SliderInput label="Value" value={cellContent.value || 0} min={0} max={100} unit="%" onChange={(v) => updateContent({ value: v })} />
-                  <ColorInput label="Color" value={cellContent.color || '#3b82f6'} onChange={(v) => updateContent({ color: v })} />
+                  <ColorPicker label="Color" value={cellContent.color || '#3b82f6'} onChange={(v) => updateContent({ color: v })} />
                 </>
               )}
 
