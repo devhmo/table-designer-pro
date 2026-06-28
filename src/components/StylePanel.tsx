@@ -5,6 +5,7 @@ import { BorderPanel } from './BorderPanel';
 import { ColorPicker } from './ColorPicker';
 import { EffectsPanel } from './EffectsPanel';
 import { AlignmentPanel } from './AlignmentPanel';
+import { TableRadiusPanel } from './TableRadiusPanel';
 import {
   Palette, Type, Layout, Grid3X3, Settings, ChevronDown, ChevronRight,
   Paintbrush, Box, Eye, EyeOff, Snowflake, Lock, Unlock, Star
@@ -419,6 +420,13 @@ export function StylePanel() {
                   <Snowflake className="w-4 h-4" />
                 </ToggleButton>
               </div>
+            </Section>
+
+            <Section title="Table Shape" icon={Box} defaultOpen={false}>
+              <TableRadiusPanel
+                borderRadius={table.theme.borderRadius}
+                onChange={(v) => updateTheme({ borderRadius: v })}
+              />
             </Section>
 
             <Section title="Grid" icon={Grid3X3} defaultOpen={false}>

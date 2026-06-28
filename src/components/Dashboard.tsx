@@ -2,19 +2,11 @@ import { useState } from 'react';
 import { useTableStore } from '../store/tableStore';
 import { THEME_PRESETS } from '../utils/themes';
 import { importFromFile } from '../utils/import';
+import { TEMPLATES } from '../utils/templates';
 import {
   Plus, Table2, Sparkles, Upload, Trash2, Copy, Edit3,
   MoreVertical, Clock, Grid3X3, Search
 } from 'lucide-react';
-
-const TEMPLATES = [
-  { name: 'Project Tracker', desc: 'Track tasks, status, and deadlines', icon: '📋', rows: 6, cols: 6 },
-  { name: 'Budget Planner', desc: 'Monthly income and expenses', icon: '💰', rows: 8, cols: 5 },
-  { name: 'Team Directory', desc: 'Contact info and roles', icon: '👥', rows: 5, cols: 6 },
-  { name: 'Inventory List', desc: 'Products, quantities, and prices', icon: '📦', rows: 8, cols: 7 },
-  { name: 'Grade Book', desc: 'Student grades and assignments', icon: '📚', rows: 10, cols: 8 },
-  { name: 'Comparison Chart', desc: 'Feature comparison matrix', icon: '⚖️', rows: 6, cols: 5 },
-];
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -58,16 +50,9 @@ export function Dashboard() {
     input.click();
   };
 
-  const handleCreateFromTemplate = (t: typeof TEMPLATES[0]) => {
-    addTable(t.name);
-    const store = useTableStore.getState();
-    const table = store.getActiveTable();
-    if (table) {
-      const extraRows = t.rows - table.rows.length;
-      const extraCols = t.cols - table.columns.length;
-      for (let i = 0; i < extraRows; i++) store.addRow();
-      for (let i = 0; i < extraCols; i++) store.addColumn();
-    }
+  const handleCreateFromTemplate = (template: typeof TEMPLATES[0]) => {
+    const tableData = template.builder();
+    importTable(tableData);
     setShowTemplates(false);
   };
 
