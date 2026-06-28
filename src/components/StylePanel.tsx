@@ -114,7 +114,6 @@ export function StylePanel() {
   const store = useTableStore();
   const table = store.getActiveTable();
   const [tab, setTab] = useState<Tab>('cell');
-  const [showContentMenu, setShowContentMenu] = useState(false);
 
   if (!table) return null;
 
@@ -144,7 +143,7 @@ export function StylePanel() {
   };
 
   return (
-    <div className="w-72 min-w-[288px] bg-[var(--surface-0)] border-l border-[var(--border)] flex flex-col h-full overflow-hidden">
+    <div className="w-72 min-w-[260px] bg-[var(--surface-0)] border-l border-[var(--border)] flex flex-col h-full overflow-hidden max-md:w-60 max-md:min-w-[240px]">
       {/* Tabs */}
       <div className="flex border-b border-[var(--border)]">
         {([

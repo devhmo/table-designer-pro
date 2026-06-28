@@ -135,15 +135,18 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
   color: var(--text-primary);
   transition: background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.context-menu-item:hover {
+.context-menu-item:hover,
+.context-menu-item:active {
   background: var(--accent-subtle);
 }
 
@@ -179,9 +182,13 @@ body {
   cursor: pointer;
   transition: all 0.1s;
   font-size: 14px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
 }
 
-.toolbar-btn:hover {
+.toolbar-btn:hover,
+.toolbar-btn:active {
   background: var(--surface-2);
   color: var(--text-primary);
 }
@@ -214,9 +221,13 @@ body {
   font-size: 13px;
   color: var(--text-secondary);
   transition: all 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
 }
 
-.sidebar-item:hover {
+.sidebar-item:hover,
+.sidebar-item:active {
   background: var(--surface-2);
   color: var(--text-primary);
 }
@@ -273,9 +284,12 @@ body {
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.tab-btn:hover {
+.tab-btn:hover,
+.tab-btn:active {
   color: var(--text-primary);
 }
 
@@ -346,4 +360,53 @@ input[type="range"]::-webkit-slider-thumb {
 @media print {
   body { overflow: visible; }
   .no-print { display: none !important; }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .toolbar-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .context-menu-item {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .sidebar-item {
+    padding: 10px 12px;
+  }
+
+  .tab-btn {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .input-field {
+    padding: 8px 12px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+
+  .select-field {
+    padding: 8px 12px;
+    font-size: 16px;
+  }
+}
+
+/* Prevent text selection during drag operations */
+.is-selecting {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Touch-friendly cell interaction hints */
+@media (hover: none) and (pointer: coarse) {
+  .col-resize-handle {
+    width: 12px !important;
+  }
+
+  .row-resize-handle {
+    height: 12px !important;
+  }
 }

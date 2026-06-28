@@ -16,7 +16,15 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
 
-  // Auto-create first table if no tables exist (fresh start or empty state)
+  // Restore dark mode on mount (from persisted state)
+  useEffect(() => {
+    const stored = useTableStore.getState();
+    if (stored.isDarkMode) {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  // Auto-create first table if no tables exist
   useEffect(() => {
     if (tables.length === 0) {
       useTableStore.getState().addTable('My First Table');

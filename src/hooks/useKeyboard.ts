@@ -21,24 +21,34 @@ export function useKeyboard() {
         return;
       }
 
+      // When editing a cell, let the editor handle all other keys
       if (isEditing) return;
 
-      // Selection shortcuts
+      // Select all
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault();
         store.selectAll();
         return;
       }
 
+      // Copy/Paste style — only when there's no text selection in the page
+      // This avoids conflicting with system Ctrl+C/V
       if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        e.preventDefault();
-        store.copyStyle();
+        const sel = window.getSelection();
+        // Only intercept if there's no text selection (user wants to copy style)
+        if (!sel || sel.isCollapsed) {
+          e.preventDefault();
+          store.copyStyle();
+        }
         return;
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        e.preventDefault();
-        store.pasteStyle();
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) {
+          e.preventDefault();
+          store.pasteStyle();
+        }
         return;
       }
 
@@ -104,9 +114,62 @@ export function useKeyboard() {
           store.updateCellContent(activeCell.row, activeCell.col, { text: '', html: '' });
         }
       }
+
+      // Bold/Italic/Underline shortcuts (when not editing)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        const table = store.getActiveTable();
+        if (table && activeCell) {
+          const row = table.rows[activeCell.row];
+          const col = table.columns[activeCell.col];
+          const cell = table.cells[`${row?.id}:${col?.id}`];
+          const isBold = cell?.style.fontWeight === 'bold' || Number(cell?.style.fontWeight) >= 700;
+          const style = { fontWeight: isBold ? 'normal' as const : 'bold' as const };
+          if (store.selection) {
+            store.updateSelectionStyle(style);
+          } else {
+            store.updateCellStyle(activeCell.row, activeCell.col, style);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+        e.preventDefault();
+        const table = store.getActiveTable();
+        if (table && activeCell) {
+          const row = table.rows[activeCell.row];
+          const col = table.columns[activeCell.col];
+          const cell = table.cells[`${row?.id}:${col?.id}`];
+          const style = { italic: !cell?.style.italic };
+          if (store.selection) {
+            store.updateSelectionStyle(style);
+          } else {
+            store.updateCellStyle(activeCell.row, activeCell.col, style);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+        e.preventDefault();
+        const table = store.getActiveTable();
+        if (table && activeCell) {
+          const row = table.rows[activeCell.row];
+          const col = table.columns[activeCell.col];
+          const cell = table.cells[`${row?.id}:${col?.id}`];
+          const style = { underline: !cell?.style.underline };
+          if (store.selection) {
+            store.updateSelectionStyle(style);
+          } else {
+            store.updateCellStyle(activeCell.row, activeCell.col, style);
+          }
+        }
+        return;
+      }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []); // Empty deps — uses getState() inside handler
+  }, []);
 }

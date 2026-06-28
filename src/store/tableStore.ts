@@ -249,7 +249,10 @@ export const useTableStore = create<TableStore>()(
       renameTable: (id: string, name: string) => {
         set(produce((s: TableStore) => {
           const t = s.tables.find(t => t.id === id);
-          if (t) t.name = name;
+          if (t) {
+            t.name = name;
+            t.updatedAt = Date.now();
+          }
         }));
       },
 
@@ -494,7 +497,6 @@ export const useTableStore = create<TableStore>()(
             }
           }
           table.updatedAt = Date.now();
-          pushHistory(s, 'Update selection style');
         }));
       },
 
@@ -730,21 +732,39 @@ export const useTableStore = create<TableStore>()(
         const { clipboard, selection, activeCell } = get();
         if (!clipboard) return;
         if (selection) {
-          get().updateSelectionStyle(clipboard);
-        } else if (activeCell) {
-          const table = get().getActiveTable();
-          if (table) {
-            set(produce((s: TableStore) => {
-              const t = s.tables.find(t => t.id === s.activeTableId);
-              if (!t) return;
-              const row = t.rows[activeCell.row];
-              const col = t.columns[activeCell.col];
-              const key = `${row.id}:${col.id}`;
-              if (t.cells[key]) {
-                Object.assign(t.cells[key].style, clipboard);
+          set(produce((s: TableStore) => {
+            const table = s.tables.find(t => t.id === s.activeTableId);
+            if (!table) return;
+            const r1 = Math.min(selection.startRow, selection.endRow);
+            const r2 = Math.max(selection.startRow, selection.endRow);
+            const c1 = Math.min(selection.startCol, selection.endCol);
+            const c2 = Math.max(selection.startCol, selection.endCol);
+            for (let r = r1; r <= r2; r++) {
+              for (let c = c1; c <= c2; c++) {
+                const row = table.rows[r];
+                const col = table.columns[c];
+                if (!row || !col) continue;
+                const key = `${row.id}:${col.id}`;
+                if (!table.cells[key]) table.cells[key] = createDefaultCell();
+                Object.assign(table.cells[key].style, clipboard);
               }
-            }));
-          }
+            }
+            table.updatedAt = Date.now();
+            pushHistory(s, 'Paste style');
+          }));
+        } else if (activeCell) {
+          set(produce((s: TableStore) => {
+            const t = s.tables.find(t => t.id === s.activeTableId);
+            if (!t) return;
+            const row = t.rows[activeCell.row];
+            const col = t.columns[activeCell.col];
+            const key = `${row.id}:${col.id}`;
+            if (t.cells[key]) {
+              Object.assign(t.cells[key].style, clipboard);
+            }
+            t.updatedAt = Date.now();
+            pushHistory(s, 'Paste style');
+          }));
         }
       },
 

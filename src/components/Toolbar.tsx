@@ -4,11 +4,11 @@ import {
   Undo2, Redo2, Plus, Minus, Merge, Split, Lock, Unlock,
   Bold, Italic, Underline, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Type, Paintbrush, Grid3X3, Download, Upload,
-  Moon, Sun, SidebarOpen, SidebarClose, ZoomIn, ZoomOut,
-  Search, Copy, ClipboardPaste, Eye, EyeOff, Snowflake,
-  Trash2, CopyPlus, Table2, ChevronDown, FileDown, FileUp,
-  Palette, Columns, Rows, ArrowUpDown, ArrowLeftRight,
+  Type, Paintbrush, Grid3X3,
+  Moon, Sun, ZoomIn, ZoomOut,
+  Copy, ClipboardPaste, Eye, Snowflake,
+  Trash2, CopyPlus, ChevronDown, FileDown, FileUp,
+  Columns, Rows,
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, downloadFile } from '../utils/export';
