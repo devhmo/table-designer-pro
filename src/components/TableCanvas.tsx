@@ -1,39 +1,80 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useTableStore, getCoveredCellKeys } from '../store/tableStore';
 import { CellEditor } from './CellEditor';
 import { Plus, Crosshair } from 'lucide-react';
 
+function SnowflakeIcon() {
+  return (
+    <svg className="w-2.5 h-2.5 ml-1 text-blue-400 inline" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 0a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 6.293V.5A.5.5 0 0 1 8 0zm-3.354 10.354a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 0 1 .708-.708L4.5 9.293V8a.5.5 0 0 1 1 0v1.293l1.354-1.354a.5.5 0 0 1 .708.708l-2.414 2.414-.146.146z"/>
+    </svg>
+  );
+}
+
 export function TableCanvas() {
-  const store = useTableStore();
-  const table = store.getActiveTable();
+  // Selective store subscriptions for performance
+  const activeTableId = useTableStore(s => s.activeTableId);
+  const tables = useTableStore(s => s.tables);
+  const selection = useTableStore(s => s.selection);
+  const activeCell = useTableStore(s => s.activeCell);
+  const editingCell = useTableStore(s => s.editingCell);
+  const editingColumnHeader = useTableStore(s => s.editingColumnHeader);
+  const showGrid = useTableStore(s => s.showGrid);
+  const zoom = useTableStore(s => s.zoom);
+
+  // Store functions (stable references)
+  const resizeColumn = useTableStore(s => s.resizeColumn);
+  const resizeRow = useTableStore(s => s.resizeRow);
+  const renameColumn = useTableStore(s => s.renameColumn);
+  const selectAll = useTableStore(s => s.selectAll);
+  const selectColumn = useTableStore(s => s.selectColumn);
+  const selectRow = useTableStore(s => s.selectRow);
+  const addColumn = useTableStore(s => s.addColumn);
+  const addRow = useTableStore(s => s.addRow);
+  const setActiveCell = useTableStore(s => s.setActiveCell);
+  const setSelection = useTableStore(s => s.setSelection);
+  const setEditingCell = useTableStore(s => s.setEditingCell);
+  const setEditingColumnHeader = useTableStore(s => s.setEditingColumnHeader);
+  const moveRow = useTableStore(s => s.moveRow);
+  const moveColumn = useTableStore(s => s.moveColumn);
+  const deleteRow = useTableStore(s => s.deleteRow);
+  const deleteColumn = useTableStore(s => s.deleteColumn);
+  const duplicateRow = useTableStore(s => s.duplicateRow);
+  const duplicateColumn = useTableStore(s => s.duplicateColumn);
+  const mergeCells = useTableStore(s => s.mergeCells);
+  const splitCell = useTableStore(s => s.splitCell);
+  const toggleCellLock = useTableStore(s => s.toggleCellLock);
+  const copyStyle = useTableStore(s => s.copyStyle);
+  const pasteStyle = useTableStore(s => s.pasteStyle);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const colRenameRef = useRef<HTMLInputElement>(null);
 
   const [resizingCol, setResizingCol] = useState<{ index: number; startX: number; startWidth: number } | null>(null);
   const [resizingRow, setResizingRow] = useState<{ index: number; startY: number; startHeight: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: number; col: number } | null>(null);
-
   const [selectStart, setSelectStart] = useState<{ row: number; col: number } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [lastTapCell, setLastTapCell] = useState<{ row: number; col: number; time: number } | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const didLongPressRef = useRef(false);
   const [dragType, setDragType] = useState<'row' | 'col' | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
 
-  const coveredKeys = table ? getCoveredCellKeys(table) : new Set<string>();
+  // Memoize table lookup
+  const table = useMemo(() => tables.find(t => t.id === activeTableId) || null, [tables, activeTableId]);
+  const coveredKeys = useMemo(() => table ? getCoveredCellKeys(table) : new Set<string>(), [table]);
+  const theme = table?.theme;
+  const scale = zoom / 100;
 
-  if (!table) return null;
-  const { theme } = table;
-  const scale = store.zoom / 100;
+  if (!table || !theme) return null;
 
   useEffect(() => {
     return () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
   }, []);
 
-  // ── Resize handlers ──
+  // ── Resize ──
   const handleColResizeStart = (e: React.MouseEvent, index: number) => {
     e.preventDefault(); e.stopPropagation();
     setResizingCol({ index, startX: e.clientX, startWidth: table.columns[index].width });
@@ -53,13 +94,13 @@ export function TableCanvas() {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (resizingCol) store.resizeColumn(resizingCol.index, resizingCol.startWidth + (e.clientX - resizingCol.startX));
-      if (resizingRow) store.resizeRow(resizingRow.index, resizingRow.startHeight + (e.clientY - resizingRow.startY));
+      if (resizingCol) resizeColumn(resizingCol.index, resizingCol.startWidth + (e.clientX - resizingCol.startX));
+      if (resizingRow) resizeRow(resizingRow.index, resizingRow.startHeight + (e.clientY - resizingRow.startY));
     };
     const handleMouseUp = () => { setResizingCol(null); setResizingRow(null); };
     const handleTouchMove = (e: TouchEvent) => {
-      if (resizingCol) { e.preventDefault(); store.resizeColumn(resizingCol.index, resizingCol.startWidth + (e.touches[0].clientX - resizingCol.startX)); }
-      if (resizingRow) { e.preventDefault(); store.resizeRow(resizingRow.index, resizingRow.startHeight + (e.touches[0].clientY - resizingRow.startY)); }
+      if (resizingCol) { e.preventDefault(); resizeColumn(resizingCol.index, resizingCol.startWidth + (e.touches[0].clientX - resizingCol.startX)); }
+      if (resizingRow) { e.preventDefault(); resizeRow(resizingRow.index, resizingRow.startHeight + (e.touches[0].clientY - resizingRow.startY)); }
     };
     const handleTouchEnd = () => { setResizingCol(null); setResizingRow(null); };
     if (resizingCol || resizingRow) {
@@ -74,16 +115,16 @@ export function TableCanvas() {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [resizingCol, resizingRow, store]);
+  }, [resizingCol, resizingRow, resizeColumn, resizeRow]);
 
   // ── Column Rename ──
   useEffect(() => {
-    if (store.editingColumnHeader !== null && colRenameRef.current) { colRenameRef.current.focus(); colRenameRef.current.select(); }
-  }, [store.editingColumnHeader]);
+    if (editingColumnHeader !== null && colRenameRef.current) { colRenameRef.current.focus(); colRenameRef.current.select(); }
+  }, [editingColumnHeader]);
 
   const commitColRename = (index: number, name: string) => {
-    if (name.trim()) store.renameColumn(index, name.trim());
-    store.setEditingColumnHeader(null);
+    if (name.trim()) renameColumn(index, name.trim());
+    setEditingColumnHeader(null);
   };
 
   // ── Drag & Drop ──
@@ -101,7 +142,7 @@ export function TableCanvas() {
   const handleDrop = (e: React.DragEvent, type: 'row' | 'col', index: number) => {
     e.preventDefault();
     if (dragType === type && dragFrom !== null && dragFrom !== index) {
-      if (type === 'row') store.moveRow(dragFrom, index); else store.moveColumn(dragFrom, index);
+      if (type === 'row') moveRow(dragFrom, index); else moveColumn(dragFrom, index);
     }
     setDragType(null); setDragFrom(null); setDragOver(null);
   };
@@ -109,42 +150,42 @@ export function TableCanvas() {
 
   // ── Cell activation ──
   const activateCell = useCallback((rowIdx: number, colIdx: number) => {
-    store.setActiveCell({ row: rowIdx, col: colIdx });
-    store.setSelection(null); store.setEditingCell(null); store.setEditingColumnHeader(null); setContextMenu(null);
-  }, [store]);
+    setActiveCell({ row: rowIdx, col: colIdx });
+    setSelection(null); setEditingCell(null); setEditingColumnHeader(null); setContextMenu(null);
+  }, [setActiveCell, setSelection, setEditingCell, setEditingColumnHeader]);
 
   const startEditingCell = useCallback((rowIdx: number, colIdx: number) => {
     const cell = table.cells[`${table.rows[rowIdx].id}:${table.columns[colIdx].id}`];
     if (cell?.locked) return;
-    store.setActiveCell({ row: rowIdx, col: colIdx });
-    store.setEditingCell({ row: rowIdx, col: colIdx });
-  }, [table, store]);
+    setActiveCell({ row: rowIdx, col: colIdx });
+    setEditingCell({ row: rowIdx, col: colIdx });
+  }, [table, setActiveCell, setEditingCell]);
 
   // ── Mouse ──
   const handleCellMouseDown = useCallback((rowIdx: number, colIdx: number, e: React.MouseEvent) => {
     if (e.button === 2) return; e.stopPropagation();
     if (selectionMode) {
-      if (e.shiftKey && store.activeCell) {
-        store.setSelection({ startRow: store.activeCell.row, startCol: store.activeCell.col, endRow: rowIdx, endCol: colIdx });
+      if (e.shiftKey && activeCell) {
+        setSelection({ startRow: activeCell.row, startCol: activeCell.col, endRow: rowIdx, endCol: colIdx });
       } else {
-        store.setActiveCell({ row: rowIdx, col: colIdx });
-        if (store.selection) { store.setSelection({ startRow: store.selection.startRow, startCol: store.selection.startCol, endRow: rowIdx, endCol: colIdx }); }
-        else { store.setSelection({ startRow: rowIdx, startCol: colIdx, endRow: rowIdx, endCol: colIdx }); }
+        setActiveCell({ row: rowIdx, col: colIdx });
+        if (selection) { setSelection({ startRow: selection.startRow, startCol: selection.startCol, endRow: rowIdx, endCol: colIdx }); }
+        else { setSelection({ startRow: rowIdx, startCol: colIdx, endRow: rowIdx, endCol: colIdx }); }
       }
       setSelectStart({ row: rowIdx, col: colIdx }); setIsSelecting(true); return;
     }
-    if (e.shiftKey && store.activeCell) {
-      store.setSelection({ startRow: store.activeCell.row, startCol: store.activeCell.col, endRow: rowIdx, endCol: colIdx });
-    } else if (store.activeCell?.row === rowIdx && store.activeCell?.col === colIdx && !store.editingCell) {
+    if (e.shiftKey && activeCell) {
+      setSelection({ startRow: activeCell.row, startCol: activeCell.col, endRow: rowIdx, endCol: colIdx });
+    } else if (activeCell?.row === rowIdx && activeCell?.col === colIdx && !editingCell) {
       startEditingCell(rowIdx, colIdx);
     } else {
       activateCell(rowIdx, colIdx); setSelectStart({ row: rowIdx, col: colIdx }); setIsSelecting(true);
     }
-  }, [store, selectionMode, activateCell, startEditingCell]);
+  }, [selectionMode, activeCell, selection, editingCell, setActiveCell, setSelection, activateCell, startEditingCell]);
 
   const handleCellMouseEnter = useCallback((rowIdx: number, colIdx: number) => {
-    if (isSelecting && selectStart) store.setSelection({ startRow: selectStart.row, startCol: selectStart.col, endRow: rowIdx, endCol: colIdx });
-  }, [isSelecting, selectStart, store]);
+    if (isSelecting && selectStart) setSelection({ startRow: selectStart.row, startCol: selectStart.col, endRow: rowIdx, endCol: colIdx });
+  }, [isSelecting, selectStart, setSelection]);
 
   useEffect(() => {
     const handleMouseUp = () => { setIsSelecting(false); setSelectStart(null); };
@@ -154,10 +195,10 @@ export function TableCanvas() {
 
   // ── Touch ──
   const handleCellTouchStart = useCallback((rowIdx: number, colIdx: number, e: React.TouchEvent) => {
-    e.stopPropagation(); didLongPressRef.current = false;
+    e.stopPropagation();
     if (selectionMode) {
-      if (store.selection) store.setSelection({ startRow: store.selection.startRow, startCol: store.selection.startCol, endRow: rowIdx, endCol: colIdx });
-      else { store.setActiveCell({ row: rowIdx, col: colIdx }); store.setSelection({ startRow: rowIdx, startCol: colIdx, endRow: rowIdx, endCol: colIdx }); }
+      if (selection) setSelection({ startRow: selection.startRow, startCol: selection.startCol, endRow: rowIdx, endCol: colIdx });
+      else { setActiveCell({ row: rowIdx, col: colIdx }); setSelection({ startRow: rowIdx, startCol: colIdx, endRow: rowIdx, endCol: colIdx }); }
       setSelectStart({ row: rowIdx, col: colIdx }); setIsSelecting(true); return;
     }
     const now = Date.now();
@@ -167,14 +208,14 @@ export function TableCanvas() {
     }
     setLastTapCell({ row: rowIdx, col: colIdx, time: now }); activateCell(rowIdx, colIdx); setSelectStart({ row: rowIdx, col: colIdx });
     longPressTimerRef.current = setTimeout(() => {
-      didLongPressRef.current = true; setContextMenu({ x: e.touches[0].clientX, y: e.touches[0].clientY, row: rowIdx, col: colIdx });
+      setContextMenu({ x: e.touches[0].clientX, y: e.touches[0].clientY, row: rowIdx, col: colIdx });
     }, 600);
-  }, [store, selectionMode, lastTapCell, activateCell, startEditingCell]);
+  }, [selectionMode, selection, lastTapCell, setActiveCell, setSelection, activateCell, startEditingCell]);
 
   const handleCellTouchMove = useCallback((rowIdx: number, colIdx: number) => {
     if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
-    if (selectStart) store.setSelection({ startRow: selectStart.row, startCol: selectStart.col, endRow: rowIdx, endCol: colIdx });
-  }, [selectStart, store]);
+    if (selectStart) setSelection({ startRow: selectStart.row, startCol: selectStart.col, endRow: rowIdx, endCol: colIdx });
+  }, [selectStart, setSelection]);
 
   const handleCellTouchEnd = useCallback(() => {
     if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
@@ -185,19 +226,19 @@ export function TableCanvas() {
 
   const handleContextMenu = useCallback((e: React.MouseEvent, rowIdx: number, colIdx: number) => {
     e.preventDefault(); e.stopPropagation();
-    store.setActiveCell({ row: rowIdx, col: colIdx });
+    setActiveCell({ row: rowIdx, col: colIdx });
     setContextMenu({ x: e.clientX, y: e.clientY, row: rowIdx, col: colIdx });
-  }, [store]);
+  }, [setActiveCell]);
 
   const isSelected = useCallback((rowIdx: number, colIdx: number) => {
-    const sel = store.selection; if (!sel) return false;
-    return rowIdx >= Math.min(sel.startRow, sel.endRow) && rowIdx <= Math.max(sel.startRow, sel.endRow) &&
-           colIdx >= Math.min(sel.startCol, sel.endCol) && colIdx <= Math.max(sel.startCol, sel.endCol);
-  }, [store.selection]);
+    if (!selection) return false;
+    return rowIdx >= Math.min(selection.startRow, selection.endRow) && rowIdx <= Math.max(selection.startRow, selection.endRow) &&
+           colIdx >= Math.min(selection.startCol, selection.endCol) && colIdx <= Math.max(selection.startCol, selection.endCol);
+  }, [selection]);
 
   const isActive = useCallback((rowIdx: number, colIdx: number) => {
-    return store.activeCell?.row === rowIdx && store.activeCell?.col === colIdx;
-  }, [store.activeCell]);
+    return activeCell?.row === rowIdx && activeCell?.col === colIdx;
+  }, [activeCell]);
 
   // ── Styles ──
   const getCellStyle = useCallback((cell: any): React.CSSProperties => {
@@ -219,11 +260,6 @@ export function TableCanvas() {
     return style;
   }, []);
 
-  const getThemeBorder = useCallback((): React.CSSProperties => ({
-    borderBottom: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}`,
-    borderRight: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}`,
-  }), [theme]);
-
   const renderCellContent = useCallback((cell: any) => {
     if (!cell) return null; const { content } = cell;
     switch (content.type) {
@@ -243,16 +279,16 @@ export function TableCanvas() {
   const handleContextAction = useCallback((action: string) => {
     if (!contextMenu) return; const { row, col } = contextMenu;
     switch (action) {
-      case 'insertRowAbove': store.addRow(row - 1); break; case 'insertRowBelow': store.addRow(row); break;
-      case 'insertColLeft': store.addColumn(col - 1); break; case 'insertColRight': store.addColumn(col); break;
-      case 'deleteRow': store.deleteRow(row); break; case 'deleteCol': store.deleteColumn(col); break;
-      case 'duplicateRow': store.duplicateRow(row); break; case 'duplicateCol': store.duplicateColumn(col); break;
-      case 'merge': if (store.selection) store.mergeCells(store.selection); break;
-      case 'split': store.splitCell(row, col); break; case 'lock': store.toggleCellLock(row, col); break;
-      case 'copyStyle': store.copyStyle(); break; case 'pasteStyle': store.pasteStyle(); break;
+      case 'insertRowAbove': addRow(row - 1); break; case 'insertRowBelow': addRow(row); break;
+      case 'insertColLeft': addColumn(col - 1); break; case 'insertColRight': addColumn(col); break;
+      case 'deleteRow': deleteRow(row); break; case 'deleteCol': deleteColumn(col); break;
+      case 'duplicateRow': duplicateRow(row); break; case 'duplicateCol': duplicateColumn(col); break;
+      case 'merge': if (selection) mergeCells(selection); break;
+      case 'split': splitCell(row, col); break; case 'lock': toggleCellLock(row, col); break;
+      case 'copyStyle': copyStyle(); break; case 'pasteStyle': pasteStyle(); break;
     }
     setContextMenu(null);
-  }, [contextMenu, store]);
+  }, [contextMenu, selection, addRow, addColumn, deleteRow, deleteColumn, duplicateRow, duplicateColumn, mergeCells, splitCell, toggleCellLock, copyStyle, pasteStyle]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -270,15 +306,26 @@ export function TableCanvas() {
     return { left: x, top: y };
   };
 
-  const themeBorder = getThemeBorder();
+  // Memoize theme border values
+  const bw = theme.borderWidth;
+  const bs = theme.borderStyle;
+  const bc = theme.borderColor;
+  const cellBorder: React.CSSProperties = useMemo(() => ({
+    borderBottom: `${bw}px ${bs} ${bc}`,
+    borderRight: `${bw}px ${bs} ${bc}`,
+  }), [bw, bs, bc]);
+  const headerBorder: React.CSSProperties = useMemo(() => ({
+    borderBottom: `${bw + 1}px ${bs} ${bc}`,
+    borderRight: `${bw}px ${bs} ${bc}`,
+  }), [bw, bs, bc]);
 
   return (
     <div ref={canvasRef} className="table-canvas bg-[var(--surface-1)] relative"
-      onClick={(e) => { if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('table-canvas')) { setContextMenu(null); store.setEditingColumnHeader(null); } }}>
+      onClick={(e) => { if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('table-canvas')) { setContextMenu(null); setEditingColumnHeader(null); } }}>
 
       {/* Selection Mode Toggle */}
       <button className={`fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${selectionMode ? 'bg-blue-500 text-white scale-110' : 'bg-[var(--surface-0)] text-[var(--text-secondary)] border border-[var(--border)]'}`}
-        onClick={() => { setSelectionMode(!selectionMode); if (selectionMode) store.setSelection(null); }}
+        onClick={() => { setSelectionMode(!selectionMode); if (selectionMode) setSelection(null); }}
         title={selectionMode ? 'Exit selection mode' : 'Enter selection mode'}>
         <Crosshair className="w-5 h-5" />
       </button>
@@ -290,28 +337,26 @@ export function TableCanvas() {
 
       <div className="inline-block min-w-full p-4" style={{ zoom: `${scale}` }}>
 
-        {/* ══ CORNER CELL + COLUMN HEADERS (OUTSIDE rounded container) ══ */}
+        {/* ══ CORNER + COLUMN HEADERS ══ */}
         <div className="flex">
-          {/* Corner cell (select all) */}
-          <div className="bg-[var(--surface-2)]" style={{ width: 32, minWidth: 32, height: 28, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}`, borderRight: '1px solid var(--border)' }}
-            onClick={(e) => { e.stopPropagation(); store.selectAll(); }}>
+          <div className="bg-[var(--surface-2)]" style={{ width: 32, minWidth: 32, height: 28, ...headerBorder }}
+            onClick={(e) => { e.stopPropagation(); selectAll(); }}>
             <div className="w-full h-full flex items-center justify-center cursor-pointer hover:bg-[var(--surface-3)]">
               <div className="w-2 h-2 rounded-sm bg-[var(--text-tertiary)]" />
             </div>
           </div>
-          {/* Column headers */}
           {table.columns.map((col, ci) => {
             if (col.hidden) return null;
             return (
               <div key={col.id}
                 className={`text-xs font-medium text-left relative group select-none ${col.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${dragOver === ci && dragType === 'col' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
-                style={{ width: col.width, minWidth: col.minWidth, height: 28, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}`, borderRight: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}`, background: theme.headerBg, color: theme.headerText, fontWeight: theme.headerFontWeight as any }}
+                style={{ width: col.width, minWidth: col.minWidth, height: 28, ...headerBorder, background: theme.headerBg, color: theme.headerText, fontWeight: theme.headerFontWeight as any }}
                 draggable onDragStart={(e) => handleDragStart(e, 'col', ci)} onDragOver={(e) => handleDragOver(e, 'col', ci)} onDrop={(e) => handleDrop(e, 'col', ci)} onDragEnd={handleDragEnd}>
-                <div className="px-2 h-full flex items-center cursor-pointer hover:opacity-80" onClick={() => store.selectColumn(ci)} onDoubleClick={(e) => { e.stopPropagation(); store.setEditingColumnHeader(ci); }}>
-                  {store.editingColumnHeader === ci ? (
+                <div className="px-2 h-full flex items-center cursor-pointer hover:opacity-80" onClick={() => selectColumn(ci)} onDoubleClick={(e) => { e.stopPropagation(); setEditingColumnHeader(ci); }}>
+                  {editingColumnHeader === ci ? (
                     <input ref={colRenameRef} className="input-field !py-0 !px-1 text-xs w-full" defaultValue={col.name}
                       onBlur={(e) => commitColRename(ci, e.currentTarget.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitColRename(ci, e.currentTarget.value); if (e.key === 'Escape') store.setEditingColumnHeader(null); e.stopPropagation(); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitColRename(ci, e.currentTarget.value); if (e.key === 'Escape') setEditingColumnHeader(null); e.stopPropagation(); }}
                       onClick={(e) => e.stopPropagation()} />
                   ) : <><span>{col.name}</span>{col.frozen && <SnowflakeIcon />}</>}
                 </div>
@@ -320,40 +365,38 @@ export function TableCanvas() {
               </div>
             );
           })}
-          {/* Add column button */}
-          <div className="bg-[var(--surface-2)]" style={{ width: 32, minWidth: 32, height: 28, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}` }}>
-            <button className="toolbar-btn !w-6 !h-6 mx-auto flex items-center justify-center" onClick={() => store.addColumn()} title="Add column">
+          <div className="bg-[var(--surface-2)]" style={{ width: 32, minWidth: 32, height: 28, ...headerBorder }}>
+            <button className="toolbar-btn !w-6 !h-6 mx-auto flex items-center justify-center" onClick={() => addColumn()} title="Add column">
               <Plus className="w-3 h-3" />
             </button>
           </div>
         </div>
 
-        {/* ══ DATA ROWS (row headers outside + rounded data table) ══ */}
+        {/* ══ ROW HEADERS + DATA TABLE ══ */}
         <div className="flex">
-          {/* Row headers column (OUTSIDE) — neutral styling, not themed */}
+          {/* Row headers */}
           <div className="flex flex-col" style={{ width: 32 }}>
             {table.rows.map((row, ri) => (
               <div key={row.id}
                 className={`text-xs text-center cursor-grab select-none active:cursor-grabbing relative ${row.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-[var(--surface-2)]'} ${row.hidden ? 'hidden' : ''} ${dragOver === ri && dragType === 'row' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
-                style={{ width: 32, minWidth: 32, height: row.height, borderBottom: `${theme.borderWidth}px solid ${theme.borderColor}`, borderRight: '1px solid var(--border)' }}
-                draggable onDragStart={(e) => handleDragStart(e, 'row', ri)} onDragOver={(e) => handleDragOver(e, 'row', ri)} onDrop={(e) => handleDrop(e, 'row', ri)} onDragEnd={handleDragEnd} onClick={() => store.selectRow(ri)}>
+                style={{ width: 32, minWidth: 32, height: row.height, ...cellBorder }}
+                draggable onDragStart={(e) => handleDragStart(e, 'row', ri)} onDragOver={(e) => handleDragOver(e, 'row', ri)} onDrop={(e) => handleDrop(e, 'row', ri)} onDragEnd={handleDragEnd} onClick={() => selectRow(ri)}>
                 <span className="text-[var(--text-tertiary)]">{ri + 1}</span>
                 {row.frozen && <SnowflakeIcon />}
                 <div className={`row-resize-handle absolute bottom-0 left-0 right-0 z-30 ${resizingRow?.index === ri ? 'active' : ''}`}
                   style={{ height: 16, cursor: 'row-resize' }} onMouseDown={(e) => handleRowResizeStart(e, ri)} onTouchStart={(e) => handleRowResizeTouchStart(e, ri)} />
               </div>
             ))}
-            {/* Add row button */}
-            <div className="bg-[var(--surface-2)] border-b border-r border-[var(--border)]" style={{ width: 32, height: 32 }}>
-              <button className="toolbar-btn !w-6 !h-6 mx-auto flex items-center justify-center" onClick={() => store.addRow()} title="Add row">
+            <div className="bg-[var(--surface-2)]" style={{ width: 32, height: 32, ...cellBorder }}>
+              <button className="toolbar-btn !w-6 !h-6 mx-auto flex items-center justify-center" onClick={() => addRow()} title="Add row">
                 <Plus className="w-3 h-3" />
               </button>
             </div>
           </div>
 
-          {/* ══ THE ROUNDED DATA TABLE (ONLY data cells) ══ */}
-          <div style={{ borderRadius: theme.borderRadius, overflow: 'hidden', flex: 1 }}>
-            <table className="border-collapse w-full" style={{ fontFamily: theme.fontFamily, fontSize: theme.fontSize, border: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}` }}>
+          {/* Data table */}
+          <div style={{ borderRadius: theme.borderRadius, overflow: 'hidden', flex: 1, border: `${bw}px ${bs} ${bc}` }}>
+            <table className="border-collapse w-full" style={{ fontFamily: theme.fontFamily, fontSize: theme.fontSize }}>
               <tbody>
                 {table.rows.map((row, ri) => (
                   <tr key={row.id} className={row.hidden ? 'hidden' : ''}>
@@ -363,7 +406,7 @@ export function TableCanvas() {
                       if (coveredKeys.has(cellKey)) return null;
                       const cell = table.cells[cellKey];
                       const cellStyle = getCellStyle(cell);
-                      const isEditing = store.editingCell?.row === ri && store.editingCell?.col === colIdx;
+                      const isEditing = editingCell?.row === ri && editingCell?.col === colIdx;
                       const selected = isSelected(ri, colIdx);
                       const active = isActive(ri, colIdx);
                       let cellBg: string | undefined;
@@ -372,8 +415,8 @@ export function TableCanvas() {
 
                       return (
                         <td key={col.id}
-                          className={`relative ${store.showGrid ? '' : 'border-transparent'} ${selected && !active ? 'cell-selected' : ''} ${active ? 'cell-active' : ''} ${cell?.locked ? 'bg-gray-50 dark:bg-gray-800/50' : ''}`}
-                          style={{ height: row.height, width: col.width, minWidth: col.minWidth, color: theme.cellText, ...(cellBg ? { backgroundColor: cellBg } : {}), ...themeBorder, ...cellStyle }}
+                          className={`relative ${showGrid ? '' : 'border-transparent'} ${selected && !active ? 'cell-selected' : ''} ${active ? 'cell-active' : ''} ${cell?.locked ? 'bg-gray-50 dark:bg-gray-800/50' : ''}`}
+                          style={{ height: row.height, width: col.width, minWidth: col.minWidth, color: theme.cellText, ...(cellBg ? { backgroundColor: cellBg } : {}), ...cellBorder, ...cellStyle }}
                           colSpan={cell?.colspan && cell.colspan > 1 ? cell.colspan : undefined}
                           rowSpan={cell?.rowspan && cell.rowspan > 1 ? cell.rowspan : undefined}
                           onMouseDown={(e) => handleCellMouseDown(ri, colIdx, e)} onMouseEnter={() => handleCellMouseEnter(ri, colIdx)}
@@ -421,13 +464,5 @@ export function TableCanvas() {
         </div>
       )}
     </div>
-  );
-}
-
-function SnowflakeIcon() {
-  return (
-    <svg className="w-2.5 h-2.5 ml-1 text-blue-400 inline" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M8 0a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 6.293V.5A.5.5 0 0 1 8 0zm-3.354 10.354a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 0 1 .708-.708L4.5 9.293V8a.5.5 0 0 1 1 0v1.293l1.354-1.354a.5.5 0 0 1 .708.708l-2.414 2.414-.146.146z"/>
-    </svg>
   );
 }
