@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { useTableStore } from '../store/tableStore';
 import { THEME_PRESETS } from '../utils/themes';
 import { BorderPanel } from './BorderPanel';
+import { ColorPicker } from './ColorPicker';
+import { EffectsPanel } from './EffectsPanel';
+import { AlignmentPanel } from './AlignmentPanel';
 import {
-  Palette, Type, Layout, Grid3X3, Image, Settings, ChevronDown, ChevronRight,
-  Paintbrush, Box, Eye, EyeOff, Snowflake, Lock, Unlock, Link, Hash, Star
+  Palette, Type, Layout, Grid3X3, Settings, ChevronDown, ChevronRight,
+  Paintbrush, Box, Eye, EyeOff, Snowflake, Lock, Unlock, Star
 } from 'lucide-react';
 import type { CellStyle, TableTheme, CellContent } from '../types';
 
@@ -342,45 +345,13 @@ export function StylePanel() {
 
             {/* Alignment */}
             <Section title="Alignment" icon={Layout} defaultOpen={false}>
-              <div className="flex items-center gap-1">
-                {[
-                  { value: 'left', icon: '≡' },
-                  { value: 'center', icon: '☰' },
-                  { value: 'right', icon: '≡' },
-                  { value: 'justify', icon: '☰' },
-                ].map(({ value, icon }) => (
-                  <ToggleButton
-                    key={value}
-                    active={cellStyle.textAlign === value}
-                    onClick={() => updateStyle({ textAlign: value as any })}
-                    title={`Align ${value}`}
-                  >
-                    <span className="text-xs">{icon}</span>
-                  </ToggleButton>
-                ))}
-              </div>
-              <div className="flex items-center gap-1">
-                {[
-                  { value: 'top', label: 'T' },
-                  { value: 'middle', label: 'M' },
-                  { value: 'bottom', label: 'B' },
-                ].map(({ value, label }) => (
-                  <ToggleButton
-                    key={value}
-                    active={cellStyle.verticalAlign === value}
-                    onClick={() => updateStyle({ verticalAlign: value as any })}
-                    title={`Vertical ${value}`}
-                  >
-                    <span className="text-xs">{label}</span>
-                  </ToggleButton>
-                ))}
-              </div>
+              <AlignmentPanel cellStyle={cellStyle} onUpdate={updateStyle} />
             </Section>
 
             {/* Colors */}
             <Section title="Colors" icon={Paintbrush} defaultOpen={false}>
-              <ColorInput label="Text" value={cellStyle.textColor || ''} onChange={(v) => updateStyle({ textColor: v })} />
-              <ColorInput label="Background" value={cellStyle.bgColor || ''} onChange={(v) => updateStyle({ bgColor: v })} />
+              <ColorPicker label="Text" value={cellStyle.textColor || ''} onChange={(v) => updateStyle({ textColor: v || undefined })} allowClear />
+              <ColorPicker label="Background" value={cellStyle.bgColor || ''} onChange={(v) => updateStyle({ bgColor: v || undefined })} allowClear />
               <SliderInput label="Opacity" value={cellStyle.opacity ?? 1} min={0} max={1} step={0.05} onChange={(v) => updateStyle({ opacity: v })} />
             </Section>
 
@@ -393,38 +364,7 @@ export function StylePanel() {
 
             {/* Effects */}
             <Section title="Effects" icon={Star} defaultOpen={false}>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">Shadow</label>
-                <select
-                  className="select-field !py-0.5 text-xs flex-1"
-                  value={cellStyle.boxShadow || 'none'}
-                  onChange={(e) => updateStyle({ boxShadow: e.target.value === 'none' ? undefined : e.target.value })}
-                >
-                  <option value="none">None</option>
-                  <option value="0 1px 2px rgba(0,0,0,0.1)">Subtle</option>
-                  <option value="0 2px 8px rgba(0,0,0,0.15)">Medium</option>
-                  <option value="0 4px 16px rgba(0,0,0,0.2)">Large</option>
-                  <option value="0 8px 32px rgba(0,0,0,0.25)">Extra Large</option>
-                  <option value="inset 0 2px 4px rgba(0,0,0,0.1)">Inset</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-[var(--text-secondary)] w-20 shrink-0">Gradient</label>
-                <select
-                  className="select-field !py-0.5 text-xs flex-1"
-                  value={cellStyle.gradient || 'none'}
-                  onChange={(e) => updateStyle({ gradient: e.target.value === 'none' ? undefined : e.target.value })}
-                >
-                  <option value="none">None</option>
-                  <option value="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">Purple Haze</option>
-                  <option value="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">Pink Sunset</option>
-                  <option value="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">Ocean Blue</option>
-                  <option value="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)">Green Fresh</option>
-                  <option value="linear-gradient(135deg, #fa709a 0%, #fee140 100%)">Warm Glow</option>
-                  <option value="linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)">Lavender</option>
-                  <option value="linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)">Peach</option>
-                </select>
-              </div>
+              <EffectsPanel cellStyle={cellStyle} onUpdate={updateStyle} />
             </Section>
 
             {/* Lock */}
@@ -554,18 +494,18 @@ export function StylePanel() {
             </Section>
 
             <Section title="Header Colors" icon={Paintbrush}>
-              <ColorInput label="Background" value={table.theme.headerBg} onChange={(v) => updateTheme({ headerBg: v })} />
-              <ColorInput label="Text" value={table.theme.headerText} onChange={(v) => updateTheme({ headerText: v })} />
+              <ColorPicker label="Background" value={table.theme.headerBg} onChange={(v) => updateTheme({ headerBg: v })} />
+              <ColorPicker label="Text" value={table.theme.headerText} onChange={(v) => updateTheme({ headerText: v })} />
             </Section>
 
             <Section title="Cell Colors" icon={Paintbrush}>
-              <ColorInput label="Background" value={table.theme.cellBg} onChange={(v) => updateTheme({ cellBg: v })} />
-              <ColorInput label="Text" value={table.theme.cellText} onChange={(v) => updateTheme({ cellText: v })} />
-              <ColorInput label="Alt row" value={table.theme.alternateRowBg || ''} onChange={(v) => updateTheme({ alternateRowBg: v })} />
+              <ColorPicker label="Background" value={table.theme.cellBg} onChange={(v) => updateTheme({ cellBg: v })} />
+              <ColorPicker label="Text" value={table.theme.cellText} onChange={(v) => updateTheme({ cellText: v })} />
+              <ColorPicker label="Alt row" value={table.theme.alternateRowBg || ''} onChange={(v) => updateTheme({ alternateRowBg: v })} />
             </Section>
 
             <Section title="Borders" icon={Box}>
-              <ColorInput label="Color" value={table.theme.borderColor} onChange={(v) => updateTheme({ borderColor: v })} />
+              <ColorPicker label="Color" value={table.theme.borderColor} onChange={(v) => updateTheme({ borderColor: v })} />
               <SliderInput label="Width" value={table.theme.borderWidth} min={0} max={5} unit="px" onChange={(v) => updateTheme({ borderWidth: v })} />
               <SelectInput
                 label="Style"
