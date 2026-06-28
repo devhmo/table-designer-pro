@@ -290,14 +290,22 @@ export function TableCanvas() {
 
       <div className="inline-block min-w-full p-4" style={{ zoom: `${scale}` }}>
 
-        {/* ══ COLUMN HEADERS (OUTSIDE rounded container) ══ */}
-        <div className="flex" style={{ marginLeft: 32 }}>
+        {/* ══ CORNER CELL + COLUMN HEADERS (OUTSIDE rounded container) ══ */}
+        <div className="flex">
+          {/* Corner cell (select all) */}
+          <div className="bg-[var(--surface-2)] border-b border-r border-[var(--border)]" style={{ width: 32, minWidth: 32, height: 28 }}
+            onClick={(e) => { e.stopPropagation(); store.selectAll(); }}>
+            <div className="w-full h-full flex items-center justify-center cursor-pointer hover:bg-[var(--surface-3)]">
+              <div className="w-2 h-2 rounded-sm bg-[var(--text-tertiary)]" />
+            </div>
+          </div>
+          {/* Column headers */}
           {table.columns.map((col, ci) => {
             if (col.hidden) return null;
             return (
               <div key={col.id}
                 className={`text-xs font-medium text-left relative group select-none ${col.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : ''} ${dragOver === ci && dragType === 'col' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
-                style={{ width: col.width, minWidth: col.minWidth, height: 28, ...themeBorder, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}`, background: theme.headerBg, color: theme.headerText, fontWeight: theme.headerFontWeight as any }}
+                style={{ width: col.width, minWidth: col.minWidth, height: 28, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}`, borderRight: `${theme.borderWidth}px ${theme.borderStyle} ${theme.borderColor}`, background: theme.headerBg, color: theme.headerText, fontWeight: theme.headerFontWeight as any }}
                 draggable onDragStart={(e) => handleDragStart(e, 'col', ci)} onDragOver={(e) => handleDragOver(e, 'col', ci)} onDrop={(e) => handleDrop(e, 'col', ci)} onDragEnd={handleDragEnd}>
                 <div className="px-2 h-full flex items-center cursor-pointer hover:opacity-80" onClick={() => store.selectColumn(ci)} onDoubleClick={(e) => { e.stopPropagation(); store.setEditingColumnHeader(ci); }}>
                   {store.editingColumnHeader === ci ? (
@@ -312,19 +320,22 @@ export function TableCanvas() {
               </div>
             );
           })}
-          <div style={{ width: 32, minWidth: 32, height: 28, ...themeBorder, borderBottom: `${theme.borderWidth + 1}px ${theme.borderStyle} ${theme.borderColor}`, background: theme.headerBg }}>
-            <button className="toolbar-btn !w-6 !h-6 mx-auto" onClick={() => store.addColumn()} title="Add column"><Plus className="w-3 h-3" /></button>
+          {/* Add column button */}
+          <div className="bg-[var(--surface-2)] border-b border-[var(--border)]" style={{ width: 32, minWidth: 32, height: 28 }}>
+            <button className="toolbar-btn !w-6 !h-6 mx-auto flex items-center justify-center" onClick={() => store.addColumn()} title="Add column">
+              <Plus className="w-3 h-3" />
+            </button>
           </div>
         </div>
 
         {/* ══ DATA ROWS (row headers outside + rounded data table) ══ */}
         <div className="flex">
-          {/* Row headers column (OUTSIDE) */}
+          {/* Row headers column (OUTSIDE) — neutral styling, not themed */}
           <div className="flex flex-col" style={{ width: 32 }}>
             {table.rows.map((row, ri) => (
               <div key={row.id}
                 className={`text-xs text-center cursor-grab select-none active:cursor-grabbing relative ${row.frozen ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-[var(--surface-2)]'} ${row.hidden ? 'hidden' : ''} ${dragOver === ri && dragType === 'row' ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
-                style={{ width: 32, minWidth: 32, height: row.height, ...themeBorder }}
+                style={{ width: 32, minWidth: 32, height: row.height, borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}
                 draggable onDragStart={(e) => handleDragStart(e, 'row', ri)} onDragOver={(e) => handleDragOver(e, 'row', ri)} onDrop={(e) => handleDrop(e, 'row', ri)} onDragEnd={handleDragEnd} onClick={() => store.selectRow(ri)}>
                 <span className="text-[var(--text-tertiary)]">{ri + 1}</span>
                 {row.frozen && <SnowflakeIcon />}
@@ -332,8 +343,11 @@ export function TableCanvas() {
                   style={{ height: 16, cursor: 'row-resize' }} onMouseDown={(e) => handleRowResizeStart(e, ri)} onTouchStart={(e) => handleRowResizeTouchStart(e, ri)} />
               </div>
             ))}
-            <div style={{ width: 32, height: 32, ...themeBorder, background: 'var(--surface-2)' }}>
-              <button className="toolbar-btn !w-6 !h-6 mx-auto" onClick={() => store.addRow()} title="Add row"><Plus className="w-3 h-3" /></button>
+            {/* Add row button */}
+            <div className="bg-[var(--surface-2)] border-b border-r border-[var(--border)]" style={{ width: 32, height: 32 }}>
+              <button className="toolbar-btn !w-6 !h-6 mx-auto flex items-center justify-center" onClick={() => store.addRow()} title="Add row">
+                <Plus className="w-3 h-3" />
+              </button>
             </div>
           </div>
 
