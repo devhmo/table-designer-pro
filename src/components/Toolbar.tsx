@@ -11,7 +11,7 @@ import {
   Columns, Rows,
   PanelLeftClose, PanelLeftOpen, Home
 } from 'lucide-react';
-import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, downloadFile } from '../utils/export';
+import { tableToHTML, tableToCSV, tableToMarkdown, tableToJSON, tableToExcel, tableToImage, tableToSVG, tableToPDF, downloadFile } from '../utils/export';
 import { importFromFile } from '../utils/import';
 import type { TableData } from '../types';
 
@@ -62,13 +62,7 @@ export function Toolbar() {
         downloadFile(tableToJSON(table), `${table.name}.json`, 'application/json');
         break;
       case 'pdf':
-        // PDF export via print dialog
-        const printWin = window.open('', '_blank');
-        if (printWin) {
-          printWin.document.write(tableToHTML(table));
-          printWin.document.close();
-          printWin.print();
-        }
+        await tableToPDF(table);
         break;
       case 'png':
         await tableToImage(table, 'png');
